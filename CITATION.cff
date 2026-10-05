@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "SARA: Self-Adaptive Revisiting Awareness for Enhancing Robustness and Generalization in Classification Tasks"
+authors:
+  - family-names: Khalooei
+    given-names: Mohammad
+    affiliation: Amirkabir University of Technology
+  - family-names: Amirmazlaghani
+    given-names: Maryam
+    affiliation: Amirkabir University of Technology
+  - family-names: Homayounpour
+    given-names: Mohammad Mehdi
+    affiliation: Amirkabir University of Technology
+version: 1.0.0
+date-released: 2026-10-05
+license: MIT
+repository-code: "https://github.com/khalooei/SARA"
+keywords:
+  - adversarial training
+  - robustness
+  - data augmentation
+  - deep learning
