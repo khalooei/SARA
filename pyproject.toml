@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sara"
+version = "1.0.0"
+description = "Self-Adaptive Revisiting Awareness (SARA) for robust and generalizable classification"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Mohammad Khalooei" },
+    { name = "Maryam Amirmazlaghani" },
+    { name = "Mohammad Mehdi Homayounpour" },
+]
+requires-python = ">=3.9"
+dependencies = [
+    "torch>=2.1",
+    "torchvision>=0.16",
+    "torchattacks>=3.5",
+    "numpy>=1.24",
+    "pillow>=9.0",
+]
+keywords = ["adversarial training", "robustness", "data augmentation", "deep learning"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "ruff>=0.4"]
+
+[project.urls]
+Repository = "https://github.com/khalooei/SARA"
+
+[tool.setuptools]
+packages = ["sara"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Experiment scripts add the repository root to sys.path before importing the package.
+"scripts/*.py" = ["E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["sara"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
