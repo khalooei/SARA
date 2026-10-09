@@ -4,6 +4,7 @@
 ![Python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.1%2B-ee4c2c)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Project page](https://img.shields.io/badge/project-page-19856a)](https://khalooei.github.io/SARA/)
 
 Official PyTorch implementation of **"Self-Adaptive Revisiting Awareness for Enhancing Robustness and
 Generalization in Classification Tasks"** by Mohammad Khalooei, Maryam Amirmazlaghani and Mohammad Mehdi
