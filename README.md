@@ -19,6 +19,10 @@ to a nearby point that the model classifies correctly with sufficient confidence
 successfully corrected samples to the batch. The correction is driven by the **Confidence Guard (CG) loss**,
 and SARA can be combined with standard training or with adversarial training (PGD, TRADES, MART).
 
+<p align="center">
+  <img src="docs/assets/sara-correction.svg" alt="SARA corrects a misclassified sample inside its epsilon-box and adds it to the batch, discards a sample that cannot reach the true class, and leaves confidently classified samples unchanged" width="100%">
+</p>
+
 ## Highlights
 
 - **Confidence Guard loss.** A cross-entropy pull toward the true class plus a hinge penalty on the
@@ -66,6 +70,19 @@ For a sample `(x, y)` with true-class probability `f_y(x)` and margin `h(x, y) =
 The implementation follows Algorithm 1 of the paper: [`sara/confidence_guard.py`](sara/confidence_guard.py)
 contains the challenging-set identification, the CG loss and the inner correction, and
 [`sara/trainer.py`](sara/trainer.py) contains the outer training step.
+
+## Results at a glance
+
+With the hyperparameters of each method tuned individually, adding SARA increases the robust accuracy of every
+base method on MNIST, CIFAR10 and SVHN, by up to 16 percentage points.
+
+<p align="center">
+  <img src="docs/assets/sara-results.svg" alt="Robust accuracy gained by adding SARA to each base method on MNIST, CIFAR10 and SVHN, in percentage points" width="80%">
+</p>
+
+Under a shared training configuration without per-method tuning, the stabilized SARA variants perform on par
+with AT-PGD; the paper analyzes this setting in Sections 4.4 to 4.7. The
+[project page](https://khalooei.github.io/SARA/) has an interactive version of the figures above.
 
 ## Installation
 

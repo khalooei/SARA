@@ -728,7 +728,9 @@ for x, y in train_loader:
     var end = result.path[result.path.length - 1];
     statusEl.innerHTML = result.ok
       ? '<strong class="ok">Accepted</strong> after ' + result.steps + " step" + (result.steps === 1 ? "" : "s") + ": f<sub>y</sub>(x*) = " + SARA_TOY.prob(end).toFixed(2) + " ≥ ξ with margin ≤ −τ. x* joins the training batch."
-      : '<strong class="no">Discarded</strong>: after κ = ' + kapIn.value + " steps x* is still outside the acceptance region (f<sub>y</sub> = " + SARA_TOY.prob(end).toFixed(2) + "). Try a larger ε or κ.";
+      : (Math.max(Math.abs(end[0] - sample[0]), Math.abs(end[1] - sample[1])) >= +epsIn.value - 0.5
+        ? '<strong class="no">Discarded</strong>: the search reached the edge of the ε-box before the true class (f<sub>y</sub> = ' + SARA_TOY.prob(end).toFixed(2) + "). The correction converges to a stationary point, which need not be correct; a larger ε gives it more room."
+        : '<strong class="no">Discarded</strong>: after κ = ' + kapIn.value + " steps x* is still outside the acceptance region (f<sub>y</sub> = " + SARA_TOY.prob(end).toFixed(2) + "). Try more steps κ.");
   }
 
   function run() {
