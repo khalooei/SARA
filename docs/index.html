@@ -4,275 +4,451 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>SARA</title>
-<meta name="description" content="Self-Adaptive Revisiting Awareness (SARA): revisiting misclassified and low-confidence samples with a Confidence Guard loss to improve the robustness of deep classifiers.">
+<meta name="description" content="Self-Adaptive Revisiting Awareness (SARA): revisiting misclassified and low-confidence samples with a Confidence Guard loss to improve the robustness and generalization of deep classifiers.">
+<meta property="og:title" content="SARA: Self-Adaptive Revisiting Awareness">
+<meta property="og:description" content="A training strategy that corrects the samples a model finds hardest and adds them to the batch. Up to 16 percentage points more robust accuracy with per-method tuning.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: a single reading column (about 68ch) with wide bands for the hero figure and the results chart. */
+/* Layout: a centered 72rem frame; prose in a 46rem column; figures, charts and the demo use the full frame. */
 :root {
-  --bg: #f5f7fa;
+  --bg: #f4f6f9;
   --surface: #ffffff;
-  --fg: #172231;
-  --muted: #566476;
-  --line: #d9e0e8;
-  --class-a: #3f6db3;      /* region of the true class */
-  --class-a-soft: #dbe5f4;
-  --class-b: #d9824a;      /* region of the wrong class */
-  --class-b-soft: #f6e2d4;
-  --accent: #19856a;       /* an accepted correction */
+  --sunken: #eaeef3;
+  --fg: #152131;
+  --muted: #546273;
+  --line: #d7dee7;
+  --class-a: #35629f;        /* true class */
+  --class-a-soft: #d9e3f2;
+  --class-b: #cf7a42;        /* other class */
+  --class-b-soft: #f5e1d2;
+  --accent: #157a61;         /* accepted correction, gains */
+  --accent-soft: #d4ece4;
+  --reject: #b4443c;         /* discarded correction */
   --font-display: "Source Serif 4", "Iowan Old Style", Georgia, serif;
   --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
   --step--1: 0.875rem;
   --step-0: 1rem;
-  --step-1: 1.25rem;
-  --step-2: 1.6rem;
-  --step-3: clamp(2rem, 4.5vw, 3rem);
+  --step-1: 1.2rem;
+  --step-2: clamp(1.5rem, 2.6vw, 1.9rem);
+  --step-3: clamp(2.3rem, 5.2vw, 3.6rem);
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0f151d; --surface: #16202b; --fg: #e4e9ef; --muted: #9aa8b8; --line: #2a3644;
-    --class-a: #7aa2e3; --class-a-soft: #1d2d45; --class-b: #e9a274; --class-b-soft: #3a2a20; --accent: #4cc39f;
+    --bg: #0e141c; --surface: #151f2a; --sunken: #111a24; --fg: #e3e9f0; --muted: #98a7b8; --line: #283545;
+    --class-a: #7ea6e4; --class-a-soft: #1b2b42; --class-b: #e8a073; --class-b-soft: #3a291e;
+    --accent: #4fc6a1; --accent-soft: #143329; --reject: #ec7b72;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0f151d; --surface: #16202b; --fg: #e4e9ef; --muted: #9aa8b8; --line: #2a3644;
-  --class-a: #7aa2e3; --class-a-soft: #1d2d45; --class-b: #e9a274; --class-b-soft: #3a2a20; --accent: #4cc39f;
+  --bg: #0e141c; --surface: #151f2a; --sunken: #111a24; --fg: #e3e9f0; --muted: #98a7b8; --line: #283545;
+  --class-a: #7ea6e4; --class-a-soft: #1b2b42; --class-b: #e8a073; --class-b-soft: #3a291e;
+  --accent: #4fc6a1; --accent-soft: #143329; --reject: #ec7b72;
   color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--fg);
-  font: 400 var(--step-0)/1.65 var(--font-body);
-  padding-inline: 16px;
-}
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 400 var(--step-0)/1.65 var(--font-body); }
 a { color: var(--class-a); text-underline-offset: 3px; }
-a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
-h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; line-height: 1.2; margin: 0; }
-h2 { font-size: var(--step-2); font-weight: 600; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; line-height: 1.15; margin: 0; }
+h2 { font-size: var(--step-2); font-weight: 600; letter-spacing: -0.005em; }
 h3 { font-size: var(--step-1); font-weight: 600; }
 p { margin: 0; }
-code, pre { font-family: var(--font-mono); font-size: 0.9em; }
+code, pre, kbd { font-family: var(--font-mono); font-size: 0.88em; }
+sub, sup { line-height: 0; }
 
-.wrap { max-width: 68rem; margin-inline: auto; }
+.frame { max-width: 72rem; margin-inline: auto; padding-inline: 16px; }
 .column { max-width: 46rem; }
-section { padding-block: 3.5rem; border-top: 1px solid var(--line); display: grid; gap: 1.5rem; }
-.eyebrow { font: 500 var(--step--1)/1.4 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.eyebrow { font: 500 0.78rem/1.4 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.lede { font-size: 1.08rem; color: var(--muted); max-width: 46rem; }
+section { padding-block: 4.5rem; border-top: 1px solid var(--line); }
+section > .frame { display: grid; gap: 1.75rem; }
+.section-head { display: grid; gap: 0.6rem; }
+
+/* Navigation */
+.nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+.nav .frame { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-block: 0.7rem; }
+.brand { font: 700 1.15rem/1 var(--font-display); color: var(--fg); text-decoration: none; letter-spacing: 0.02em; }
+.nav ul { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; list-style: none; margin: 0; padding: 0; }
+.nav ul a { color: var(--muted); text-decoration: none; font-size: var(--step--1); font-weight: 500; }
+.nav ul a:hover { color: var(--fg); }
 
 /* Hero */
-.hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 2.5rem; align-items: center; padding-block: 3.5rem 3rem; }
-.hero h1 { font-size: var(--step-3); font-weight: 700; letter-spacing: -0.01em; }
-.hero h1 span { display: block; font-size: 0.5em; font-weight: 400; color: var(--muted); margin-top: 0.6rem; letter-spacing: 0; }
-.authors { margin-top: 1.25rem; display: grid; gap: 0.15rem; }
-.authors strong { font-weight: 600; }
+.hero { padding-block: 4rem 4.5rem; }
+.hero .frame { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 3rem; align-items: start; }
+.hero h1 { font-size: var(--step-3); font-weight: 700; letter-spacing: -0.02em; }
+.hero h1 em { font-style: italic; font-weight: 400; color: var(--accent); }
+.hero .subtitle { font: 400 1.2rem/1.45 var(--font-display); color: var(--muted); margin-top: 1rem; }
+.authors { margin-top: 1.5rem; display: grid; gap: 0.2rem; }
+.authors p { font-weight: 500; }
 .authors small { color: var(--muted); font-size: var(--step--1); }
-.actions { margin-top: 1.5rem; display: flex; flex-wrap: wrap; gap: 0.75rem; }
-.button {
-  display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1.1rem; border-radius: 6px;
-  font: 500 var(--step--1)/1 var(--font-body); text-decoration: none; border: 1px solid var(--fg); color: var(--fg);
-}
+.actions { margin-top: 1.75rem; display: flex; flex-wrap: wrap; gap: 0.7rem; }
+.button { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.65rem 1.15rem; border-radius: 6px; font: 500 var(--step--1)/1 var(--font-body); text-decoration: none; border: 1px solid var(--fg); color: var(--fg); background: transparent; cursor: pointer; }
 .button.primary { background: var(--fg); color: var(--bg); }
-.figure { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 0.75rem; display: grid; gap: 0.5rem; }
-.figure canvas { width: 100%; aspect-ratio: 4 / 3; max-width: 100%; display: block; border-radius: 6px; }
-.figure figcaption { font-size: var(--step--1); color: var(--muted); }
-.legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; font: 400 0.8rem/1.4 var(--font-mono); color: var(--muted); }
-.swatch { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 50%; margin-right: 0.35rem; vertical-align: -0.05rem; }
+.button svg { width: 1rem; height: 1rem; fill: currentColor; }
+
+/* Interactive correction demo */
+.demo { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 1rem; display: grid; gap: 0.85rem; min-width: 0; }
+.demo-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+.demo-head b { font: 600 1rem/1.3 var(--font-display); }
+.demo canvas { width: 100%; max-width: 100%; aspect-ratio: 16 / 11; display: block; border-radius: 8px; cursor: crosshair; touch-action: manipulation; }
+.status { font: 400 0.85rem/1.5 var(--font-mono); min-height: 2.6em; color: var(--muted); }
+.status strong { font-weight: 500; }
+.status .ok { color: var(--accent); }
+.status .no { color: var(--reject); }
+.sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 0.75rem 1.25rem; align-items: end; }
+.sliders label { display: grid; gap: 0.25rem; font: 400 0.8rem/1.3 var(--font-mono); color: var(--muted); }
+.sliders output { color: var(--fg); font-weight: 500; }
+.sliders input[type="range"] { width: 100%; accent-color: var(--accent); }
+.legend { display: flex; flex-wrap: wrap; gap: 0.35rem 1.1rem; font: 400 0.78rem/1.4 var(--font-mono); color: var(--muted); }
+.dot { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 50%; margin-right: 0.35rem; vertical-align: -0.05rem; }
+
+/* Key numbers */
+.numbers { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.number { padding: 1.4rem 1.5rem; display: grid; gap: 0.35rem; border-right: 1px solid var(--line); }
+.number:last-child { border-right: 0; }
+.number b { font: 600 2.2rem/1 var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.number b small { font-size: 0.5em; font-weight: 400; color: var(--muted); margin-left: 0.15rem; }
+.number span { font-size: var(--step--1); color: var(--muted); }
 
 /* Highlights */
-.highlights { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1.75rem 2.5rem; }
-.highlight { display: grid; gap: 0.35rem; align-content: start; min-width: 0; }
+.highlights { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 2rem 2.75rem; }
+.highlight { display: grid; gap: 0.4rem; align-content: start; min-width: 0; }
 .highlight h3 { font-size: 1.1rem; }
 .highlight p { color: var(--muted); }
+.highlight .tag { font: 500 0.72rem/1 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
 
 /* Method */
-.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1.25rem; counter-reset: step; }
-.steps li { counter-increment: step; display: grid; gap: 0.4rem; align-content: start; min-width: 0; padding-top: 0.75rem; border-top: 2px solid var(--fg); }
-.steps li::before { content: "Step " counter(step); font: 500 0.78rem/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
-.steps p { color: var(--muted); }
-.formulas { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
-.formulas table { border-collapse: collapse; width: 100%; min-width: 34rem; font-size: var(--step--1); }
-.formulas th, .formulas td { text-align: left; padding: 0.65rem 1rem; border-bottom: 1px solid var(--line); vertical-align: top; }
-.formulas tr:last-child th, .formulas tr:last-child td { border-bottom: 0; }
-.formulas th { font-weight: 500; white-space: nowrap; color: var(--muted); width: 11rem; }
+.pipeline { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 1.25rem; }
+.pipeline svg { display: block; width: 100%; min-width: 46rem; height: auto; }
+.pipeline text { font-family: var(--font-body); fill: var(--fg); }
+.pipeline .sub { font-family: var(--font-mono); font-size: 12px; fill: var(--muted); }
+.formulas { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.formulas table { border-collapse: collapse; width: 100%; min-width: 36rem; font-size: var(--step--1); }
+.formulas th, .formulas td { text-align: left; padding: 0.7rem 1.1rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+.formulas tr:last-child > * { border-bottom: 0; }
+.formulas th { font-weight: 500; white-space: nowrap; color: var(--muted); width: 12rem; }
 .formulas td { font-family: var(--font-mono); }
 
-/* Results */
-.controls { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.chip {
-  font: 500 var(--step--1)/1 var(--font-body); padding: 0.55rem 0.9rem; border-radius: 999px; cursor: pointer;
-  border: 1px solid var(--line); background: var(--surface); color: var(--fg);
-}
+/* Impact */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 1.25rem; display: grid; gap: 1rem; min-width: 0; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem 1.5rem; flex-wrap: wrap; }
+.panel-head h3 { font-size: 1.15rem; }
+.panels { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 1.25rem; }
+.chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.chip { font: 500 0.8rem/1 var(--font-body); padding: 0.5rem 0.8rem; border-radius: 999px; cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--fg); }
 .chip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
-.chart { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 1rem; overflow-x: auto; }
-.chart svg { display: block; width: 100%; min-width: 30rem; height: auto; }
-.chart text { font-family: var(--font-mono); font-size: 12px; fill: var(--muted); }
-.chart .label { fill: var(--fg); font-family: var(--font-body); font-size: 13px; }
-.chart .delta { fill: var(--accent); font-weight: 500; }
-.chart .grid { stroke: var(--line); stroke-width: 1; }
-.chart .bar-base { fill: var(--class-a-soft); stroke: var(--class-a); stroke-width: 1; }
-.chart .bar-sara { fill: var(--accent); }
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 1rem; }
-.stat { display: grid; gap: 0.2rem; }
-.stat b { font: 600 var(--step-2)/1.1 var(--font-display); font-variant-numeric: tabular-nums; }
-.stat span { font-size: var(--step--1); color: var(--muted); }
-.note { font-size: var(--step--1); color: var(--muted); max-width: 46rem; }
+.heat { overflow-x: auto; }
+.heat table { border-collapse: separate; border-spacing: 4px; width: 100%; min-width: 30rem; font-variant-numeric: tabular-nums; }
+.heat th { font: 500 0.78rem/1.3 var(--font-mono); color: var(--muted); text-align: center; padding: 0.25rem; }
+.heat th[scope="row"] { text-align: right; font-family: var(--font-body); font-size: 0.85rem; color: var(--fg); white-space: nowrap; padding-right: 0.5rem; }
+.heat td { text-align: center; border-radius: 6px; padding: 0.7rem 0.4rem; font: 500 0.9rem/1 var(--font-mono); color: var(--fg); }
+.scale { display: flex; align-items: center; gap: 0.6rem; font: 400 0.75rem/1 var(--font-mono); color: var(--muted); }
+.scale i { display: block; width: 8rem; height: 0.55rem; border-radius: 4px; background: linear-gradient(90deg, var(--surface), var(--accent)); border: 1px solid var(--line); }
+.scale i.diverging { background: linear-gradient(90deg, var(--reject), var(--surface), var(--accent)); }
+.chart { overflow-x: auto; }
+.chart svg { display: block; width: 100%; min-width: 28rem; height: auto; }
+svg text { font-family: var(--font-mono); font-size: 12px; fill: var(--muted); }
+svg .label { fill: var(--fg); font-family: var(--font-body); font-size: 13px; }
+svg .strong { fill: var(--fg); font-weight: 600; }
+svg .gain { fill: var(--accent); font-weight: 500; }
+svg .grid { stroke: var(--line); stroke-width: 1; }
+svg .bar-base { fill: var(--class-a-soft); stroke: var(--class-a); stroke-width: 1; }
+svg .bar-sara { fill: var(--accent); }
+.rank-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.45rem; counter-reset: rank; }
+.rank-list li { counter-increment: rank; display: grid; grid-template-columns: 1.6rem minmax(7.5rem, 9.5rem) minmax(0, 1fr) 3.4rem; align-items: center; gap: 0.6rem; font-size: 0.88rem; }
+.rank-list li::before { content: counter(rank); font: 500 0.8rem/1 var(--font-mono); color: var(--muted); text-align: right; }
+.rank-list .bar { height: 0.7rem; border-radius: 3px; background: var(--class-a-soft); border: 1px solid var(--class-a); }
+.rank-list .sara .bar { background: var(--accent); border-color: var(--accent); }
+.rank-list .sara .name { font-weight: 600; }
+.rank-list .val { font: 500 0.82rem/1 var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; }
+.note { font-size: var(--step--1); color: var(--muted); max-width: 52rem; }
+.note b { color: var(--fg); font-weight: 500; }
 
 /* Theory */
-.theory { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 1.25rem 2.5rem; }
-.theory div { display: grid; gap: 0.3rem; min-width: 0; }
-.theory b { font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; }
-.theory p { color: var(--muted); }
+.theory { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; }
+.theorem { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 1.25rem; display: grid; gap: 0.5rem; align-content: start; min-width: 0; }
+.theorem .eyebrow { color: var(--accent); }
+.theorem h3 { font-size: 1.1rem; }
+.theorem p { color: var(--muted); font-size: 0.95rem; }
+.theorem code { color: var(--fg); }
 
-/* Code blocks */
-.code { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
-.code pre { margin: 0; padding: 1rem 1.1rem; overflow-x: auto; line-height: 1.55; }
-.copy {
-  position: absolute; top: 0.5rem; right: 0.5rem; font: 500 0.75rem/1 var(--font-body); padding: 0.4rem 0.6rem;
-  border-radius: 5px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer;
-}
-footer { padding-block: 2rem 3rem; border-top: 1px solid var(--line); font-size: var(--step--1); color: var(--muted); }
+/* Code */
+.code-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 1.25rem; }
+.code { position: relative; background: var(--sunken); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.code .label-row { display: flex; justify-content: space-between; align-items: center; padding: 0.55rem 0.6rem 0.55rem 1rem; border-bottom: 1px solid var(--line); font: 500 0.75rem/1 var(--font-mono); color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; }
+.code pre { margin: 0; padding: 1rem 1.1rem; overflow-x: auto; line-height: 1.6; }
+.copy { font: 500 0.75rem/1 var(--font-body); padding: 0.4rem 0.65rem; border-radius: 5px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; text-transform: none; letter-spacing: 0; }
 
-@media (max-width: 760px) {
-  .hero { grid-template-columns: minmax(0, 1fr); gap: 1.75rem; padding-block: 2rem; }
-  section { padding-block: 2.5rem; }
+footer { border-top: 1px solid var(--line); padding-block: 2rem 3rem; font-size: var(--step--1); color: var(--muted); }
+footer .frame { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem 2rem; }
+
+@media (max-width: 900px) {
+  .hero .frame, .panels { grid-template-columns: minmax(0, 1fr); }
+  .number { border-right: 0; border-bottom: 1px solid var(--line); }
+  .number:last-child { border-bottom: 0; }
 }
-@media (prefers-reduced-motion: reduce) {
-  * { scroll-behavior: auto !important; }
+@media (max-width: 560px) {
+  .nav ul { display: none; }
+  section { padding-block: 3rem; }
+  .hero { padding-block: 2.5rem 3rem; }
+  .rank-list li { grid-template-columns: 1.3rem minmax(6.5rem, 7.5rem) minmax(0, 1fr) 3rem; }
 }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 </style>
 </head>
 <body>
-<div class="wrap">
 
-  <header class="hero">
+<nav class="nav" aria-label="Sections">
+  <div class="frame">
+    <a class="brand" href="#top">SARA</a>
+    <ul>
+      <li><a href="#method">Method</a></li>
+      <li><a href="#impact">Impact</a></li>
+      <li><a href="#theory">Theory</a></li>
+      <li><a href="#code">Code</a></li>
+      <li><a href="#citation">Cite</a></li>
+    </ul>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="frame">
     <div>
-      <p class="eyebrow">Robust classification</p>
-      <h1>SARA <span>Self-Adaptive Revisiting Awareness for Enhancing Robustness and Generalization in Classification Tasks</span></h1>
+      <p class="eyebrow">Robust and generalizable classification</p>
+      <h1 style="margin-top: 0.9rem;">Revisit the hardest samples. <em>Correct them.</em> Train on them.</h1>
+      <p class="subtitle">Self-Adaptive Revisiting Awareness for Enhancing Robustness and Generalization in Classification Tasks</p>
       <div class="authors">
-        <p><strong>Mohammad Khalooei</strong>, <strong>Maryam Amirmazlaghani</strong>, <strong>Mohammad Mehdi Homayounpour</strong></p>
+        <p>Mohammad Khalooei, Maryam Amirmazlaghani, Mohammad Mehdi Homayounpour</p>
         <small>Department of Computer Engineering, Amirkabir University of Technology, Tehran, Iran</small>
       </div>
       <div class="actions">
-        <a class="button primary" href="https://github.com/khalooei/SARA">Code on GitHub</a>
-        <a class="button" href="#results">Results</a>
+        <a class="button primary" href="https://github.com/khalooei/SARA">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.93-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.72 1.22 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.65-.89-3.65-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+          Code
+        </a>
+        <a class="button" href="#impact">See the impact</a>
         <a class="button" href="#citation">Cite</a>
       </div>
     </div>
-    <figure class="figure" aria-label="Animation of a SARA correction">
-      <canvas id="boundary" width="640" height="480"></canvas>
-      <figcaption>A misclassified sample is moved inside its ε-box until the model classifies it correctly with enough confidence and margin. The corrected sample joins the training batch.</figcaption>
+
+    <figure class="demo" style="margin: 0;" aria-labelledby="demo-title">
+      <div class="demo-head">
+        <b id="demo-title">Try a correction</b>
+        <span class="eyebrow">Click anywhere</span>
+      </div>
+      <canvas id="demo" aria-label="Interactive decision boundary. Click to place a sample of the blue class; SARA tries to correct it inside its epsilon box."></canvas>
+      <p class="status" id="status" aria-live="polite"></p>
+      <div class="sliders">
+        <label for="eps">Correction radius ε <output id="eps-out" for="eps"></output><input id="eps" type="range" min="20" max="110" step="5" value="70"></label>
+        <label for="kappa">Inner steps κ <output id="kappa-out" for="kappa"></output><input id="kappa" type="range" min="1" max="20" step="1" value="10"></label>
+        <button class="button" type="button" id="replay">Replay</button>
+      </div>
       <div class="legend">
-        <span><i class="swatch" style="background: var(--class-a)"></i>true class</span>
-        <span><i class="swatch" style="background: var(--class-b)"></i>other class</span>
-        <span><i class="swatch" style="background: var(--accent)"></i>accepted correction</span>
+        <span><i class="dot" style="background: var(--class-a)"></i>true class</span>
+        <span><i class="dot" style="background: var(--class-b)"></i>other class</span>
+        <span><i class="dot" style="background: var(--accent)"></i>accepted</span>
+        <span><i class="dot" style="background: var(--reject)"></i>discarded</span>
       </div>
     </figure>
-  </header>
+  </div>
+</header>
 
-  <section aria-labelledby="overview">
-    <p class="eyebrow" id="overview">Overview</p>
-    <div class="column" style="display: grid; gap: 1rem;">
-      <h2>Train on the samples the model finds hardest, corrected</h2>
-      <p>Deep networks are vulnerable to small input perturbations, and the samples that lie close to the decision boundary carry most of that risk. SARA revisits these samples during training. In every iteration it finds the misclassified and low-confidence samples of the mini-batch, moves each one to a nearby point that the current model classifies correctly with sufficient confidence and margin, and adds every successful correction to the batch. The correction follows the gradient of a new loss, the Confidence Guard loss, and SARA works on top of standard training or of adversarial training.</p>
+<section aria-label="Key numbers" style="padding-block: 0 4.5rem; border-top: 0;">
+  <div class="frame">
+    <div class="numbers">
+      <div class="number"><b>+16.0<small>pts</small></b><span>robust accuracy, AT-MART on MNIST under APGD (ε = 0.2)</span></div>
+      <div class="number"><b>20<small>/ 20</small></b><span>method and benchmark settings improved under APGD</span></div>
+      <div class="number"><b>5<small>/ 5</small></b><span>methods ranked above their own base method with SARA</span></div>
+      <div class="number"><b>3</b><span>proven properties: convergence, consistency, certified neighborhood</span></div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <section aria-labelledby="highlights-title">
-    <p class="eyebrow">Highlights</p>
-    <h2 id="highlights-title">What SARA brings</h2>
+<section aria-labelledby="overview-title">
+  <div class="frame">
+    <div class="section-head column">
+      <p class="eyebrow">Overview</p>
+      <h2 id="overview-title">The decision boundary is learned where the model is least certain</h2>
+    </div>
+    <p class="lede">Deep networks are vulnerable to small input perturbations, and the samples near the decision boundary carry most of that risk. SARA revisits them while training. In every iteration it finds the misclassified and low-confidence samples of the mini-batch, moves each one to a nearby point that the current model classifies correctly with sufficient confidence and margin, and adds every successful correction to the batch. The correction follows a new loss, the Confidence Guard loss, and SARA works on top of standard training or of adversarial training.</p>
     <div class="highlights">
-      <div class="highlight"><h3>Confidence Guard loss</h3><p>A cross-entropy pull toward the true class plus a hinge penalty on the margin. It upper-bounds the misclassification error and encodes the acceptance criterion exactly.</p></div>
-      <div class="highlight"><h3>Plug-in for adversarial training</h3><p>SARA wraps the base loss of standard training or of PGD, TRADES, MART and LSA adversarial training without changing it.</p></div>
-      <div class="highlight"><h3>Up to 16 points more robust accuracy</h3><p>With per-method tuning, SARA improves the robust accuracy of every base method in every configuration tested on MNIST, CIFAR10 and SVHN.</p></div>
-      <div class="highlight"><h3>Provable inner correction</h3><p>Under a standard smoothness assumption, the correction converges to a stationary point inside the admissible set, and every accepted sample certifies a robust neighborhood.</p></div>
-      <div class="highlight"><h3>Class-count-relative threshold</h3><p>The confidence threshold is set relative to chance level, ξ · 10 / C, so that the acceptance criterion stays meaningful on CIFAR100 and Tiny-ImageNet-200.</p></div>
-      <div class="highlight"><h3>Efficient and controllable</h3><p>All challenging samples are corrected in one batched operation, and a correction budget and a confidence cap address the training instabilities analyzed in the paper.</p></div>
+      <div class="highlight"><span class="tag">Loss</span><h3>Confidence Guard loss</h3><p>A cross-entropy pull toward the true class plus a hinge penalty on the margin. It bounds the misclassification error and encodes the acceptance criterion exactly.</p></div>
+      <div class="highlight"><span class="tag">Integration</span><h3>A plug-in for adversarial training</h3><p>SARA wraps the base loss of standard training or of PGD, TRADES, MART and LSA adversarial training without changing it.</p></div>
+      <div class="highlight"><span class="tag">Robustness</span><h3>Up to 16 points more robust accuracy</h3><p>With per-method tuning, SARA improves the robust accuracy of every base method in every configuration tested on MNIST, CIFAR10 and SVHN.</p></div>
+      <div class="highlight"><span class="tag">Theory</span><h3>A provable inner correction</h3><p>The correction converges under a standard smoothness assumption, and every accepted sample certifies a robust neighborhood.</p></div>
+      <div class="highlight"><span class="tag">Scale</span><h3>A class-count-relative threshold</h3><p>The confidence threshold is set relative to chance level, ξ · 10 / C, so the acceptance criterion stays meaningful on CIFAR100 and Tiny-ImageNet-200.</p></div>
+      <div class="highlight"><span class="tag">Engineering</span><h3>Batched and controllable</h3><p>All challenging samples are corrected in one tensor operation, and a correction budget and a confidence cap address the instabilities analyzed in the paper.</p></div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <section aria-labelledby="method-title">
-    <p class="eyebrow">Method</p>
-    <h2 id="method-title">One training iteration</h2>
-    <ol class="steps">
-      <li><h3>Identify</h3><p>Collect the challenging set S: samples that are misclassified or whose true-class probability is below ξ.</p></li>
-      <li><h3>Correct</h3><p>Run at most κ projected gradient steps on the Confidence Guard loss inside the L∞ ball of radius ε and the valid pixel range.</p></li>
-      <li><h3>Accept</h3><p>Keep a corrected sample once its confidence reaches ξ and its margin is at most −τ. The others are discarded.</p></li>
-      <li><h3>Train</h3><p>Update the model on the base loss over the batch plus the Confidence Guard loss over the accepted corrections.</p></li>
-    </ol>
+<section id="method" aria-labelledby="method-title">
+  <div class="frame">
+    <div class="section-head column">
+      <p class="eyebrow">Method</p>
+      <h2 id="method-title">One training iteration</h2>
+      <p class="lede">SARA adds an inner correction to each mini-batch and a second term to the training objective. Everything else in the training loop stays as it is.</p>
+    </div>
+    <div class="pipeline">
+      <svg viewBox="0 0 960 190" role="img" aria-label="Pipeline: mini-batch, identify challenging samples, correct them, accept or discard, update the model">
+        <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="var(--muted)"/></marker></defs>
+        <g stroke="var(--line)" stroke-width="1.5" fill="var(--sunken)">
+          <rect x="10" y="40" width="150" height="88" rx="10"/>
+          <rect x="200" y="40" width="170" height="88" rx="10"/>
+          <rect x="410" y="40" width="170" height="88" rx="10"/>
+          <rect x="620" y="40" width="150" height="88" rx="10" style="stroke: var(--accent)"/>
+          <rect x="810" y="40" width="140" height="88" rx="10"/>
+        </g>
+        <g stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arrow)">
+          <line x1="160" y1="84" x2="196" y2="84"/><line x1="370" y1="84" x2="406" y2="84"/>
+          <line x1="580" y1="84" x2="616" y2="84"/><line x1="770" y1="84" x2="806" y2="84"/>
+        </g>
+        <path d="M85 128 C85 172, 880 172, 880 132" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="5 5" marker-end="url(#arrow)"/>
+        <text x="482" y="182" text-anchor="middle" class="sub">the original batch B always enters the loss</text>
+        <text x="85" y="78" text-anchor="middle" font-size="16" font-weight="600">Mini-batch B</text>
+        <text x="85" y="100" text-anchor="middle" class="sub">from the training set</text>
+        <text x="285" y="72" text-anchor="middle" font-size="16" font-weight="600">Identify S</text>
+        <text x="285" y="94" text-anchor="middle" class="sub">misclassified or</text>
+        <text x="285" y="110" text-anchor="middle" class="sub">confidence below ξ</text>
+        <text x="495" y="72" text-anchor="middle" font-size="16" font-weight="600">Correct</text>
+        <text x="495" y="94" text-anchor="middle" class="sub">κ projected steps on</text>
+        <text x="495" y="110" text-anchor="middle" class="sub">L_CG inside the ε-box</text>
+        <text x="695" y="72" text-anchor="middle" font-size="16" font-weight="600" style="fill: var(--accent)">Accept S*</text>
+        <text x="695" y="94" text-anchor="middle" class="sub">f_y ≥ ξ and</text>
+        <text x="695" y="110" text-anchor="middle" class="sub">margin ≤ −τ</text>
+        <text x="880" y="72" text-anchor="middle" font-size="16" font-weight="600">Update θ</text>
+        <text x="880" y="94" text-anchor="middle" class="sub">Loss_base(B)</text>
+        <text x="880" y="110" text-anchor="middle" class="sub">+ Loss_CG(S*)</text>
+        <text x="20" y="24" class="sub">ONE TRAINING ITERATION</text>
+      </svg>
+    </div>
     <div class="formulas">
       <table>
         <tbody>
-          <tr><th>Challenging set</th><td>S = {(x, y) ∈ B : argmax<sub>j</sub> f<sub>j</sub>(x) ≠ y or f<sub>y</sub>(x) &lt; ξ}</td></tr>
-          <tr><th>Margin</th><td>h(x, y) = max<sub>j≠y</sub> f<sub>j</sub>(x) − f<sub>y</sub>(x)</td></tr>
-          <tr><th>Confidence Guard loss</th><td>L<sub>CG</sub>(x, y) = CE(f(x), y) + λ<sub>margin</sub> · ReLU(h(x, y) + τ)</td></tr>
-          <tr><th>Inner update</th><td>δ ← Π<sub>Δ</sub>(δ − α ∇<sub>δ</sub> L<sub>CG</sub>(x + δ, y)), Δ = {δ : ‖δ‖<sub>∞</sub> ≤ ε, x + δ ∈ [0, 1]<sup>d</sup>}</td></tr>
-          <tr><th>Outer objective</th><td>Loss<sub>SARA</sub> = Loss<sub>base</sub>(B) + Loss<sub>CG</sub>(S*)</td></tr>
+          <tr><th scope="row">Challenging set</th><td>S = {(x, y) ∈ B : argmax<sub>j</sub> f<sub>j</sub>(x) ≠ y or f<sub>y</sub>(x) &lt; ξ}</td></tr>
+          <tr><th scope="row">Margin</th><td>h(x, y) = max<sub>j≠y</sub> f<sub>j</sub>(x) − f<sub>y</sub>(x)</td></tr>
+          <tr><th scope="row">Confidence Guard loss</th><td>L<sub>CG</sub>(x, y) = CE(f(x), y) + λ<sub>margin</sub> · ReLU(h(x, y) + τ)</td></tr>
+          <tr><th scope="row">Inner update</th><td>δ ← Π<sub>Δ</sub>(δ − α ∇<sub>δ</sub> L<sub>CG</sub>(x + δ, y)), Δ = {δ : ‖δ‖<sub>∞</sub> ≤ ε, x + δ ∈ [0, 1]<sup>d</sup>}</td></tr>
+          <tr><th scope="row">Outer objective</th><td>Loss<sub>SARA</sub> = Loss<sub>base</sub>(B) + Loss<sub>CG</sub>(S*)</td></tr>
         </tbody>
       </table>
     </div>
-  </section>
+  </div>
+</section>
 
-  <section id="results" aria-labelledby="results-title">
-    <p class="eyebrow">Results</p>
-    <h2 id="results-title">Robust accuracy with and without SARA</h2>
-    <div class="stats">
-      <div class="stat"><b>+16.0</b><span>points, AT-MART on MNIST (APGD, ε = 0.2)</span></div>
-      <div class="stat"><b>+12.3</b><span>points, AT-MART on SVHN (APGD, ε = 0.03)</span></div>
-      <div class="stat"><b>+13.1</b><span>points, AT-PGD on CIFAR10 (APGD, ε = 0.03)</span></div>
-      <div class="stat"><b>20 / 20</b><span>method and attack settings improved under APGD</span></div>
+<section id="impact" aria-labelledby="impact-title">
+  <div class="frame">
+    <div class="section-head column">
+      <p class="eyebrow">Impact</p>
+      <h2 id="impact-title">More robust in every tested setting</h2>
+      <p class="lede">With the hyperparameters of each method tuned individually, adding SARA raised the robust accuracy of all five base methods on MNIST, CIFAR10 and SVHN.</p>
     </div>
-    <div class="controls" role="group" aria-label="Benchmark">
-      <button class="chip" type="button" id="ds-mnist02" data-ds="mnist02" aria-pressed="true">MNIST · APGD ε = 0.2</button>
-      <button class="chip" type="button" id="ds-mnist01" data-ds="mnist01" aria-pressed="false">MNIST · APGD ε = 0.1</button>
-      <button class="chip" type="button" id="ds-cifar10" data-ds="cifar10" aria-pressed="false">CIFAR10 · APGD ε = 0.03</button>
-      <button class="chip" type="button" id="ds-svhn" data-ds="svhn" aria-pressed="false">SVHN · APGD ε = 0.03</button>
-    </div>
-    <div class="chart" id="chart" role="img" aria-label="Robust accuracy of each base method with and without SARA"></div>
-    <div class="legend">
-      <span><i class="swatch" style="background: var(--class-a-soft); border: 1px solid var(--class-a)"></i>base method</span>
-      <span><i class="swatch" style="background: var(--accent)"></i>base method + SARA</span>
-    </div>
-    <p class="note">Accuracy (%) under APGD attack, as reported in Table 3 of the paper, with the hyperparameters of each method tuned individually. Under a shared configuration without per-method tuning, the stabilized SARA variants perform on par with AT-PGD; the paper analyzes this setting in Sections 4.4 and 4.5.</p>
-  </section>
 
-  <section aria-labelledby="theory-title">
-    <p class="eyebrow">Theory</p>
-    <h2 id="theory-title">Guarantees behind the correction</h2>
+    <div class="panel">
+      <div class="panel-head">
+        <h3 id="heat-title">Change from adding SARA, in percentage points</h3>
+        <div class="chips" role="group" aria-label="Metric">
+          <button class="chip" type="button" id="metric-robust" data-metric="robust" aria-pressed="true">Robust accuracy (APGD)</button>
+          <button class="chip" type="button" id="metric-clean" data-metric="clean" aria-pressed="false">Clean accuracy</button>
+        </div>
+      </div>
+      <div class="heat" id="heat" aria-labelledby="heat-title"></div>
+      <div class="scale" id="heat-scale"></div>
+    </div>
+
+    <div class="panels">
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Robust accuracy with and without SARA</h3>
+        </div>
+        <div class="chips" role="group" aria-label="Benchmark">
+          <button class="chip" type="button" id="ds-mnist02" data-ds="mnist02" aria-pressed="true">MNIST ε = 0.2</button>
+          <button class="chip" type="button" id="ds-mnist01" data-ds="mnist01" aria-pressed="false">MNIST ε = 0.1</button>
+          <button class="chip" type="button" id="ds-cifar10" data-ds="cifar10" aria-pressed="false">CIFAR10 ε = 0.03</button>
+          <button class="chip" type="button" id="ds-svhn" data-ds="svhn" aria-pressed="false">SVHN ε = 0.03</button>
+        </div>
+        <div class="chart" id="bars" role="img" aria-label="Robust accuracy with and without SARA"></div>
+        <div class="legend">
+          <span><i class="dot" style="background: var(--class-a-soft); border: 1px solid var(--class-a)"></i>base method</span>
+          <span><i class="dot" style="background: var(--accent)"></i>with SARA</span>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Ranking by mean robust accuracy</h3>
+        </div>
+        <ol class="rank-list" id="ranking" aria-label="Methods ranked by mean robust accuracy over MNIST, CIFAR10 and SVHN"></ol>
+        <p class="note">Mean over the strongest reported attack per dataset: APGD with ε = 0.2 on MNIST and ε = 0.03 on CIFAR10 and SVHN.</p>
+      </div>
+    </div>
+
+    <p class="note"><b>How these numbers were obtained.</b> All values are the accuracies (%) reported in Tables 3 and 16 of the paper, with the hyperparameters of each method tuned individually. Under a shared training configuration without per-method tuning, the stabilized SARA variants perform on par with AT-PGD; the paper analyzes this setting, and the causes and remedies of the differences, in Sections 4.4 to 4.7.</p>
+  </div>
+</section>
+
+<section id="theory" aria-labelledby="theory-title">
+  <div class="frame">
+    <div class="section-head column">
+      <p class="eyebrow">Theory</p>
+      <h2 id="theory-title">Guarantees behind the correction</h2>
+    </div>
     <div class="theory">
-      <div><b>Convergence</b><p>Every iterate stays in the admissible set. Under a standard smoothness assumption, the Confidence Guard loss decreases monotonically and the correction reaches an approximate stationary point at rate O(1/K).</p></div>
-      <div><b>Consistency</b><p>The Confidence Guard loss upper-bounds the misclassification indicator, and its two terms encode the confidence and margin conditions of the acceptance region exactly.</p></div>
-      <div><b>Certified neighborhood</b><p>An accepted sample is surrounded by a ball of radius min{r, τ / L<sub>h</sub>} on which the prediction does not change.</p></div>
-      <div><b>Vicinal risk minimization</b><p>The outer objective adds a model-dependent vicinity concentrated near the decision boundary to the empirical risk.</p></div>
+      <article class="theorem"><span class="eyebrow">Proposition 1</span><h3>Convergence</h3><p>Every iterate stays in the admissible set. Under a standard smoothness assumption, the Confidence Guard loss decreases monotonically and the correction reaches an approximate stationary point at rate <code>O(1/K)</code>.</p></article>
+      <article class="theorem"><span class="eyebrow">Proposition 2</span><h3>Consistency</h3><p>The Confidence Guard loss upper-bounds the misclassification indicator, and its two terms encode the confidence and margin conditions of the acceptance region exactly.</p></article>
+      <article class="theorem"><span class="eyebrow">Proposition 3</span><h3>Certified neighborhood</h3><p>Under the current model, an accepted sample is surrounded by a ball of radius <code>min{r, τ / L<sub>h</sub>}</code> on which the prediction does not change.</p></article>
+      <article class="theorem"><span class="eyebrow">Interpretation</span><h3>Vicinal risk minimization</h3><p>The outer objective adds to the empirical risk a model-dependent vicinity that is concentrated near the decision boundary.</p></article>
     </div>
-  </section>
+  </div>
+</section>
 
-  <section aria-labelledby="start-title">
-    <p class="eyebrow">Get started</p>
-    <h2 id="start-title">Install and train</h2>
-    <div class="code">
-      <button class="copy" type="button" id="copy-install" data-target="install">Copy</button>
-<pre id="install">git clone https://github.com/khalooei/SARA.git
-cd SARA
-pip install -e .
-
-python train.py --dataset mnist --model lenet --base-loss pgd --sara \
-    --epochs 20 --eval-apgd --out-dir runs/mnist/at_pgd_sara</pre>
+<section id="code" aria-labelledby="code-title">
+  <div class="frame">
+    <div class="section-head column">
+      <p class="eyebrow">Code</p>
+      <h2 id="code-title">Install and train</h2>
+      <p class="lede">The repository contains the method, the GAIRAT, FAT and OHEM baselines, the scripts of every experiment, and unit tests. MNIST, CIFAR10, CIFAR100 and SVHN download automatically.</p>
     </div>
-    <p class="note">MNIST, CIFAR10, CIFAR100 and SVHN download automatically. The repository includes the scripts of every experiment, the GAIRAT, FAT and OHEM baselines, and unit tests.</p>
-  </section>
+    <div class="code-grid">
+      <div class="code">
+        <div class="label-row">Command line <button class="copy" type="button" id="copy-cli" data-target="cli">Copy</button></div>
+<pre id="cli">git clone https://github.com/khalooei/SARA.git
+cd SARA && pip install -e .
 
-  <section id="citation" aria-labelledby="cite-title">
-    <p class="eyebrow">Citation</p>
-    <h2 id="cite-title">Cite this work</h2>
+python train.py --dataset mnist --model lenet \
+    --base-loss pgd --sara --epochs 20 \
+    --eval-apgd --out-dir runs/mnist/at_pgd_sara</pre>
+      </div>
+      <div class="code">
+        <div class="label-row">Python <button class="copy" type="button" id="copy-api" data-target="api">Copy</button></div>
+<pre id="api">from sara import SARAConfig, build_base_loss, sara_training_step
+
+base_loss = build_base_loss("pgd")   # ce, pgd, trades, mart
+cfg = SARAConfig(epsilon=0.2, tau=0.05, xi=0.5, kappa=10)
+
+for x, y in train_loader:
+    stats = sara_training_step(model, optimizer, x, y,
+                               base_loss, cfg,
+                               base_loss_kwargs={"pgd_steps": 7})</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="citation" aria-labelledby="cite-title">
+  <div class="frame">
+    <div class="section-head column">
+      <p class="eyebrow">Citation</p>
+      <h2 id="cite-title">Cite this work</h2>
+    </div>
     <div class="code">
-      <button class="copy" type="button" id="copy-bibtex" data-target="bibtex">Copy</button>
+      <div class="label-row">BibTeX <button class="copy" type="button" id="copy-bib" data-target="bibtex">Copy</button></div>
 <pre id="bibtex">@misc{khalooei2026sara,
   title  = {Self-Adaptive Revisiting Awareness for Enhancing Robustness
             and Generalization in Classification Tasks},
@@ -282,174 +458,317 @@ python train.py --dataset mnist --model lenet --base-loss pgd --sara \
   howpublished = {\url{https://github.com/khalooei/SARA}}
 }</pre>
     </div>
-  </section>
+  </div>
+</section>
 
-  <footer>
-    <p>SARA is released under the MIT License. Code: <a href="https://github.com/khalooei/SARA">github.com/khalooei/SARA</a></p>
-  </footer>
-</div>
+<footer>
+  <div class="frame">
+    <span>SARA · Amirkabir University of Technology</span>
+    <span>Released under the MIT License · <a href="https://github.com/khalooei/SARA">github.com/khalooei/SARA</a></span>
+  </div>
+</footer>
 
 <script>
 (function () {
   "use strict";
 
-  function token(name) {
-    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  }
-
-  /* Results: robust accuracy (%) from Table 3 of the paper. */
-  var DATA = {
-    mnist02: { label: "MNIST, APGD ε = 0.2", rows: [["Standard", 18.08, 23.52], ["AT-PGD", 18.01, 24.67], ["AT-TRADES", 19.59, 26.75], ["AT-MART", 31.36, 47.38], ["AT-LSA", 32.69, 38.41]] },
-    mnist01: { label: "MNIST, APGD ε = 0.1", rows: [["Standard", 74.88, 77.15], ["AT-PGD", 84.71, 86.42], ["AT-TRADES", 85.00, 86.84], ["AT-MART", 85.46, 89.88], ["AT-LSA", 85.78, 87.98]] },
-    cifar10: { label: "CIFAR10, APGD ε = 0.03", rows: [["Standard", 0.00, 12.63], ["AT-PGD", 26.48, 39.57], ["AT-TRADES", 36.55, 42.11], ["AT-MART", 45.32, 47.99], ["AT-LSA", 37.68, 41.45]] },
-    svhn: { label: "SVHN, APGD ε = 0.03", rows: [["Standard", 0.05, 14.52], ["AT-PGD", 51.48, 52.96], ["AT-TRADES", 42.97, 43.54], ["AT-MART", 47.74, 59.99], ["AT-LSA", 51.54, 51.98]] }
-  };
-
+  var root = document.documentElement;
+  function token(name) { return getComputedStyle(root).getPropertyValue(name).trim(); }
   var NS = "http://www.w3.org/2000/svg";
-  function el(name, attrs, text) {
+  function svgEl(name, attrs, text) {
     var e = document.createElementNS(NS, name);
     for (var k in attrs) e.setAttribute(k, attrs[k]);
     if (text !== undefined) e.textContent = text;
     return e;
   }
 
-  function drawChart(key) {
-    var d = DATA[key];
-    var W = 720, rowH = 46, top = 28, left = 96, right = 70, bottom = 34;
-    var H = top + d.rows.length * rowH + bottom;
-    var maxV = 0;
-    d.rows.forEach(function (r) { maxV = Math.max(maxV, r[1], r[2]); });
-    var xMax = Math.ceil(maxV / 10) * 10;
-    var step = xMax > 50 ? 20 : 10;
-    var x = function (v) { return left + (W - left - right) * v / xMax; };
-    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, "aria-hidden": "true" });
+  /* ---------------------------------------------------------------
+     Results reported in the paper (Table 3: tuned protocol).
+     Each row: [method, base, with SARA].
+     --------------------------------------------------------------- */
+  var METHODS = ["Standard", "AT-PGD", "AT-TRADES", "AT-MART", "AT-LSA"];
+  var ROBUST = {
+    mnist02: { label: "MNIST · ε = 0.2", rows: [[18.08, 23.52], [18.01, 24.67], [19.59, 26.75], [31.36, 47.38], [32.69, 38.41]] },
+    mnist01: { label: "MNIST · ε = 0.1", rows: [[74.88, 77.15], [84.71, 86.42], [85.00, 86.84], [85.46, 89.88], [85.78, 87.98]] },
+    cifar10: { label: "CIFAR10 · ε = 0.03", rows: [[0.00, 12.63], [26.48, 39.57], [36.55, 42.11], [45.32, 47.99], [37.68, 41.45]] },
+    svhn:    { label: "SVHN · ε = 0.03", rows: [[0.05, 14.52], [51.48, 52.96], [42.97, 43.54], [47.74, 59.99], [51.54, 51.98]] }
+  };
+  var CLEAN = {
+    mnist:   { label: "MNIST", rows: [[97.35, 96.68], [98.79, 98.91], [98.55, 98.97], [97.20, 98.12], [98.42, 98.39]] },
+    cifar10: { label: "CIFAR10", rows: [[89.03, 88.15], [86.28, 83.08], [82.95, 82.51], [77.03, 78.41], [83.12, 80.01]] },
+    svhn:    { label: "SVHN", rows: [[90.96, 91.01], [88.04, 90.55], [90.17, 90.32], [89.32, 91.10], [89.14, 90.11]] }
+  };
+  /* Table 16: mean robust accuracy over the strongest attack per dataset. */
+  var RANKING = [
+    ["AT-MART + SARA", 51.79, true], ["AT-LSA + SARA", 43.95, true], ["AT-MART", 41.47, false],
+    ["AT-LSA", 40.64, false], ["AT-PGD + SARA", 39.07, true], ["AT-TRADES + SARA", 37.47, true],
+    ["AT-TRADES", 33.04, false], ["AT-PGD", 31.99, false], ["Standard + SARA", 16.89, true], ["Standard", 6.04, false]
+  ];
 
-    for (var t = 0; t <= xMax; t += step) {
-      svg.appendChild(el("line", { x1: x(t), x2: x(t), y1: top - 8, y2: H - bottom + 4, "class": "grid" }));
-      svg.appendChild(el("text", { x: x(t), y: H - bottom + 20, "text-anchor": "middle" }, String(t)));
+  /* Gain heatmap */
+  function mix(c1, c2, t) {
+    function rgb(c) {
+      var probe = document.createElement("span"); probe.style.color = c; document.body.appendChild(probe);
+      var m = getComputedStyle(probe).color.match(/\d+(\.\d+)?/g).map(Number); probe.remove(); return m;
     }
-    svg.appendChild(el("text", { x: W - right, y: H - 4, "text-anchor": "end" }, "accuracy (%)"));
+    var a = rgb(c1), b = rgb(c2);
+    return "rgb(" + [0, 1, 2].map(function (i) { return Math.round(a[i] + (b[i] - a[i]) * t); }).join(",") + ")";
+  }
+  function drawHeat(metric) {
+    var cols = metric === "robust" ? ["mnist02", "mnist01", "cifar10", "svhn"] : ["mnist", "cifar10", "svhn"];
+    var src = metric === "robust" ? ROBUST : CLEAN;
+    var deltas = METHODS.map(function (_, i) { return cols.map(function (c) { return src[c].rows[i][1] - src[c].rows[i][0]; }); });
+    var maxAbs = Math.max.apply(null, deltas.map(function (r) { return Math.max.apply(null, r.map(Math.abs)); }));
+    var surface = token("--surface"), good = token("--accent"), bad = token("--reject");
+    var table = document.createElement("table");
+    var head = "<thead><tr><th></th>" + cols.map(function (c) { return '<th scope="col">' + src[c].label + "</th>"; }).join("") + "</tr></thead>";
+    var body = "<tbody>" + METHODS.map(function (m, i) {
+      return '<tr><th scope="row">' + m + "</th>" + deltas[i].map(function (d) {
+        var t = Math.min(Math.abs(d) / maxAbs, 1) * 0.85;
+        var bg = mix(surface, d >= 0 ? good : bad, t);
+        var strong = t > 0.5;
+        return '<td style="background:' + bg + ";color:" + (strong ? token("--surface") : token("--fg")) + '">' + (d >= 0 ? "+" : "−") + Math.abs(d).toFixed(2) + "</td>";
+      }).join("") + "</tr>";
+    }).join("") + "</tbody>";
+    table.innerHTML = head + body;
+    document.getElementById("heat").replaceChildren(table);
+    var neg = deltas.some(function (r) { return r.some(function (d) { return d < 0; }); });
+    document.getElementById("heat-scale").innerHTML = neg
+      ? '<span>−' + maxAbs.toFixed(1) + '</span><i class="diverging"></i><span>+' + maxAbs.toFixed(1) + " points</span>"
+      : '<span>0</span><i></i><span>+' + maxAbs.toFixed(1) + " points</span>";
+  }
 
-    d.rows.forEach(function (r, i) {
-      var y = top + i * rowH;
-      svg.appendChild(el("text", { x: left - 12, y: y + 20, "text-anchor": "end", "class": "label" }, r[0]));
-      svg.appendChild(el("rect", { x: x(0), y: y + 2, width: Math.max(x(r[1]) - x(0), 1), height: 14, rx: 2, "class": "bar-base" }));
-      svg.appendChild(el("rect", { x: x(0), y: y + 19, width: Math.max(x(r[2]) - x(0), 1), height: 14, rx: 2, "class": "bar-sara" }));
-      svg.appendChild(el("text", { x: x(r[1]) + 6, y: y + 13 }, r[1].toFixed(2)));
-      svg.appendChild(el("text", { x: x(r[2]) + 6, y: y + 30, "class": "delta" }, r[2].toFixed(2) + "  (+" + (r[2] - r[1]).toFixed(2) + ")"));
+  /* Before / after bars */
+  function drawBars(key) {
+    var d = ROBUST[key];
+    var W = 560, rowH = 48, top = 10, left = 90, right = 120, bottom = 30;
+    var H = top + METHODS.length * rowH + bottom;
+    var maxV = 0; d.rows.forEach(function (r) { maxV = Math.max(maxV, r[0], r[1]); });
+    var xMax = Math.ceil(maxV / 10) * 10, step = xMax > 50 ? 20 : 10;
+    var x = function (v) { return left + (W - left - right) * v / xMax; };
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, "aria-hidden": "true" });
+    for (var t = 0; t <= xMax; t += step) {
+      svg.appendChild(svgEl("line", { x1: x(t), x2: x(t), y1: top, y2: H - bottom + 2, "class": "grid" }));
+      svg.appendChild(svgEl("text", { x: x(t), y: H - bottom + 18, "text-anchor": "middle" }, String(t)));
+    }
+    METHODS.forEach(function (m, i) {
+      var y = top + i * rowH, r = d.rows[i];
+      svg.appendChild(svgEl("text", { x: left - 10, y: y + 22, "text-anchor": "end", "class": "label" }, m));
+      svg.appendChild(svgEl("rect", { x: x(0), y: y + 4, width: Math.max(x(r[0]) - x(0), 1.5), height: 13, rx: 2, "class": "bar-base" }));
+      svg.appendChild(svgEl("rect", { x: x(0), y: y + 21, width: Math.max(x(r[1]) - x(0), 1.5), height: 13, rx: 2, "class": "bar-sara" }));
+      svg.appendChild(svgEl("text", { x: x(r[0]) + 6, y: y + 15 }, r[0].toFixed(2)));
+      svg.appendChild(svgEl("text", { x: x(r[1]) + 6, y: y + 32, "class": "gain" }, r[1].toFixed(2) + "  +" + (r[1] - r[0]).toFixed(2)));
     });
-
-    var box = document.getElementById("chart");
+    var box = document.getElementById("bars");
     box.replaceChildren(svg);
     box.setAttribute("aria-label", "Robust accuracy with and without SARA, " + d.label);
   }
 
-  var chips = document.querySelectorAll(".chip[data-ds]");
-  chips.forEach(function (chip) {
-    chip.addEventListener("click", function () {
-      chips.forEach(function (c) { c.setAttribute("aria-pressed", String(c === chip)); });
-      drawChart(chip.dataset.ds);
+  /* Ranking */
+  function drawRanking() {
+    var max = RANKING[0][1];
+    document.getElementById("ranking").innerHTML = RANKING.map(function (r) {
+      return '<li class="' + (r[2] ? "sara" : "") + '"><span class="name">' + r[0] + '</span><span class="bar" style="width:' +
+        (100 * r[1] / max).toFixed(1) + '%"></span><span class="val">' + r[1].toFixed(2) + "</span></li>";
+    }).join("");
+  }
+
+  function wireChips(selector, attr, draw) {
+    var chips = document.querySelectorAll(selector);
+    chips.forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        chips.forEach(function (c) { c.setAttribute("aria-pressed", String(c === chip)); });
+        draw(chip.dataset[attr]);
+      });
     });
-  });
-  drawChart("mnist02");
+  }
+  wireChips(".chip[data-metric]", "metric", drawHeat);
+  wireChips(".chip[data-ds]", "ds", drawBars);
+  function current(selector, attr) { return document.querySelector(selector + '[aria-pressed="true"]').dataset[attr]; }
+  function redrawCharts() { drawHeat(current(".chip[data-metric]", "metric")); drawBars(current(".chip[data-ds]", "ds")); drawRanking(); }
+  redrawCharts();
 
   /* Copy buttons */
   document.querySelectorAll(".copy").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var pre = document.getElementById(btn.dataset.target);
-      var done = function () { btn.textContent = "Copied"; setTimeout(function () { btn.textContent = "Copy"; }, 1500); };
+      var reset = function () { setTimeout(function () { btn.textContent = "Copy"; }, 1600); };
       var select = function () {
         var range = document.createRange(); range.selectNodeContents(pre);
         var s = window.getSelection(); s.removeAllRanges(); s.addRange(range);
-        btn.textContent = "Selected";
-        setTimeout(function () { btn.textContent = "Copy"; }, 1500);
+        btn.textContent = "Selected"; reset();
       };
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(pre.textContent).then(done, select);
-      } else {
-        select();
-      }
+        navigator.clipboard.writeText(pre.textContent).then(function () { btn.textContent = "Copied"; reset(); }, select);
+      } else { select(); }
     });
   });
 
-  /* Hero: a misclassified sample is corrected inside its eps-box. */
-  var canvas = document.getElementById("boundary");
+  /* ---------------------------------------------------------------
+     Interactive correction on a two-class toy problem.
+     The true class (blue) lies above the boundary. Its probability is
+     a logistic function of the signed distance to the boundary, so the
+     margin condition h <= -tau of the paper becomes p >= (1 + tau) / 2.
+     The search takes kappa projected gradient steps of size
+     alpha = 2 * eps / kappa (the paper's default) inside the eps-box.
+     --------------------------------------------------------------- */
+  var SARA_TOY = (function () {
+    var W = 640, H = 440, XI = 0.5, TAU = 0.05, SHARP = 0.07;
+    function boundary(px) { return 250 - 0.16 * px + 38 * Math.sin(px / 95); }
+    function slope(px) { return -0.16 + 38 / 95 * Math.cos(px / 95); }
+    function signed(p) {                        /* positive on the blue side, in pixels along the normal */
+      var g = slope(p[0]); return (boundary(p[0]) - p[1]) / Math.sqrt(1 + g * g);
+    }
+    function prob(p) { return 1 / (1 + Math.exp(-SHARP * signed(p))); }
+    function accepted(p) { var q = prob(p); return q >= XI && (1 - q) - q <= -TAU; }
+    function challenging(p) { return prob(p) < XI || signed(p) < 0; }
+    function correct(start, eps, kappa) {
+      var alpha = 2 * eps / kappa, path = [start.slice()], p = start.slice();
+      for (var k = 0; k < kappa; k++) {
+        if (accepted(p)) return { path: path, ok: true, steps: k };
+        var g = slope(p[0]), n = Math.sqrt(1 + g * g);
+        var dir = [g / n, -1 / n];               /* ascent direction of the signed distance */
+        var nx = p[0] + alpha * dir[0], ny = p[1] + alpha * dir[1];
+        nx = Math.min(Math.max(nx, start[0] - eps), start[0] + eps);
+        ny = Math.min(Math.max(ny, start[1] - eps), start[1] + eps);
+        nx = Math.min(Math.max(nx, 0), W); ny = Math.min(Math.max(ny, 0), H);
+        p = [nx, ny]; path.push(p.slice());
+      }
+      return { path: path, ok: accepted(p), steps: kappa };
+    }
+    return { W: W, H: H, boundary: boundary, prob: prob, accepted: accepted, challenging: challenging, correct: correct };
+  })();
+  window.SARA_TOY = SARA_TOY;
+
+  var canvas = document.getElementById("demo");
   var ctx = canvas.getContext("2d");
-  var W = canvas.width, H = canvas.height;
+  var epsIn = document.getElementById("eps"), kapIn = document.getElementById("kappa");
+  var statusEl = document.getElementById("status");
   var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var W = SARA_TOY.W, H = SARA_TOY.H;
+  var sample = [300, SARA_TOY.boundary(300) + 46];
+  var result = null, shown = 0, anim = null;
 
-  function boundaryY(px) { return 300 - 0.22 * px + 34 * Math.sin(px / 105); }
-
-  var rng = (function (seed) { return function () { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }; })(7);
-  var dots = [];
-  for (var i = 0; i < 42; i++) {
-    var px = 30 + rng() * (W - 60), py = 30 + rng() * (H - 60);
-    if (Math.abs(py - boundaryY(px)) < 26) continue;
-    dots.push([px, py, py < boundaryY(px) ? "a" : "b"]);
+  var rand = (function (s) { return function () { s = (s * 16807) % 2147483647; return s / 2147483647; }; })(11);
+  var cloud = [];
+  for (var i = 0; i < 70; i++) {
+    var cx = 20 + rand() * (W - 40), cy = 20 + rand() * (H - 40), b = SARA_TOY.boundary(cx);
+    if (Math.abs(cy - b) > 22) cloud.push([cx, cy, cy < b]);
   }
-  var start = [300, boundaryY(300) + 52];      // true class "a", currently in region "b"
-  var target = [342, boundaryY(342) - 40];     // accepted point inside the eps-box
-  var half = 72;                               // half side of the eps-box
 
-  function draw(t) {
-    var A = token("--class-a"), As = token("--class-a-soft"), Bc = token("--class-b"), Bs = token("--class-b-soft");
-    var G = token("--accent"), FG = token("--fg"), M = token("--muted");
+  function resize() {
+    var dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
+    var w = canvas.clientWidth || 600;
+    canvas.width = Math.round(w * dpr); canvas.height = Math.round(w * dpr * H / W);
+    ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
+    draw();
+  }
+
+  function draw() {
+    var A = token("--class-a"), As = token("--class-a-soft"), B = token("--class-b"), Bs = token("--class-b-soft");
+    var G = token("--accent"), R = token("--reject"), FG = token("--fg"), M = token("--muted");
+    var eps = +epsIn.value;
     ctx.clearRect(0, 0, W, H);
-
     ctx.fillStyle = Bs; ctx.fillRect(0, 0, W, H);
     ctx.beginPath(); ctx.moveTo(0, 0);
-    for (var px = 0; px <= W; px += 8) ctx.lineTo(px, boundaryY(px));
+    for (var px = 0; px <= W; px += 6) ctx.lineTo(px, SARA_TOY.boundary(px));
     ctx.lineTo(W, 0); ctx.closePath(); ctx.fillStyle = As; ctx.fill();
-
     ctx.beginPath();
-    for (var qx = 0; qx <= W; qx += 8) { qx === 0 ? ctx.moveTo(qx, boundaryY(qx)) : ctx.lineTo(qx, boundaryY(qx)); }
-    ctx.setLineDash([7, 6]); ctx.lineWidth = 2; ctx.strokeStyle = FG; ctx.stroke(); ctx.setLineDash([]);
+    for (var qx = 0; qx <= W; qx += 6) { if (qx === 0) ctx.moveTo(qx, SARA_TOY.boundary(qx)); else ctx.lineTo(qx, SARA_TOY.boundary(qx)); }
+    ctx.setLineDash([8, 6]); ctx.lineWidth = 2; ctx.strokeStyle = FG; ctx.stroke(); ctx.setLineDash([]);
+    ctx.font = "13px 'IBM Plex Mono', monospace"; ctx.fillStyle = M;
+    ctx.fillText("decision boundary", 14, SARA_TOY.boundary(14) - 12);
 
-    dots.forEach(function (d) {
-      ctx.beginPath(); ctx.arc(d[0], d[1], 6, 0, Math.PI * 2);
-      ctx.fillStyle = d[2] === "a" ? A : Bc; ctx.globalAlpha = 0.55; ctx.fill(); ctx.globalAlpha = 1;
+    cloud.forEach(function (d) {
+      ctx.beginPath(); ctx.arc(d[0], d[1], 5, 0, Math.PI * 2);
+      ctx.globalAlpha = 0.5; ctx.fillStyle = d[2] ? A : B; ctx.fill(); ctx.globalAlpha = 1;
     });
 
     ctx.setLineDash([4, 4]); ctx.lineWidth = 1.5; ctx.strokeStyle = M;
-    ctx.strokeRect(start[0] - half, start[1] - half, 2 * half, 2 * half); ctx.setLineDash([]);
-    ctx.fillStyle = M; ctx.font = "15px 'IBM Plex Mono', monospace";
-    ctx.fillText("ε", start[0] + half - 18, start[1] - half + 20);
+    ctx.strokeRect(sample[0] - eps, sample[1] - eps, 2 * eps, 2 * eps); ctx.setLineDash([]);
+    ctx.fillStyle = M; ctx.fillText("ε-box", sample[0] - eps + 6, sample[1] - eps + 16);
 
-    var e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-    var cx = start[0] + (target[0] - start[0]) * e;
-    var cy = start[1] + (target[1] - start[1]) * e + Math.sin(e * Math.PI) * 10;
+    if (result) {
+      var pts = result.path.slice(0, shown + 1);
+      ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+      pts.forEach(function (p) { ctx.lineTo(p[0], p[1]); });
+      ctx.strokeStyle = FG; ctx.lineWidth = 1.5; ctx.stroke();
+      pts.slice(1).forEach(function (p) { ctx.beginPath(); ctx.arc(p[0], p[1], 2.5, 0, Math.PI * 2); ctx.fillStyle = FG; ctx.fill(); });
+    }
 
-    ctx.beginPath(); ctx.moveTo(start[0], start[1]); ctx.lineTo(cx, cy);
-    ctx.strokeStyle = FG; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.beginPath(); ctx.arc(sample[0], sample[1], 8, 0, Math.PI * 2);
+    ctx.fillStyle = A; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = FG; ctx.stroke();
+    ctx.fillStyle = FG; ctx.font = "15px 'IBM Plex Mono', monospace"; ctx.fillText("x", sample[0] - 24, sample[1] + 24);
 
-    ctx.beginPath(); ctx.arc(start[0], start[1], 9, 0, Math.PI * 2);
-    ctx.fillStyle = A; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = Bc; ctx.stroke();
-
-    var accepted = t >= 1;
-    ctx.beginPath(); ctx.arc(cx, cy, 9, 0, Math.PI * 2);
-    ctx.fillStyle = accepted ? G : A; ctx.fill();
-    if (accepted) { ctx.beginPath(); ctx.arc(cx, cy, 16, 0, Math.PI * 2); ctx.strokeStyle = G; ctx.lineWidth = 2; ctx.stroke(); }
-
-    ctx.fillStyle = FG; ctx.font = "15px 'IBM Plex Mono', monospace";
-    ctx.fillText("x", start[0] - 32, start[1] + 32);
-    if (accepted) ctx.fillText("x*", cx + 22, cy - 10);
+    if (result && shown >= result.path.length - 1) {
+      var end = result.path[result.path.length - 1];
+      if (result.ok) {
+        ctx.beginPath(); ctx.arc(end[0], end[1], 8, 0, Math.PI * 2); ctx.fillStyle = G; ctx.fill();
+        ctx.beginPath(); ctx.arc(end[0], end[1], 15, 0, Math.PI * 2); ctx.strokeStyle = G; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = FG; ctx.fillText("x*", end[0] + 20, end[1] - 8);
+      } else {
+        ctx.strokeStyle = R; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(end[0] - 8, end[1] - 8); ctx.lineTo(end[0] + 8, end[1] + 8);
+        ctx.moveTo(end[0] + 8, end[1] - 8); ctx.lineTo(end[0] - 8, end[1] + 8); ctx.stroke();
+      }
+    }
   }
 
-  draw(1);
-  if (!reduce) {
-    var cycle = 5200, t0 = null;
+  function describe() {
+    var p = SARA_TOY.prob(sample);
+    if (!SARA_TOY.challenging(sample)) {
+      statusEl.innerHTML = "f<sub>y</sub>(x) = " + p.toFixed(2) + ". <strong>Not challenging</strong>: the sample is already classified correctly with confidence ≥ ξ, so SARA leaves it alone.";
+      return;
+    }
+    var kind = p < 0.5 ? "misclassified" : "low confidence";
+    if (!result || shown < result.path.length - 1) {
+      statusEl.innerHTML = "f<sub>y</sub>(x) = " + p.toFixed(2) + " (" + kind + "). Correcting, step " + Math.max(shown, 0) + " of " + kapIn.value + "…";
+      return;
+    }
+    var end = result.path[result.path.length - 1];
+    statusEl.innerHTML = result.ok
+      ? '<strong class="ok">Accepted</strong> after ' + result.steps + " step" + (result.steps === 1 ? "" : "s") + ": f<sub>y</sub>(x*) = " + SARA_TOY.prob(end).toFixed(2) + " ≥ ξ with margin ≤ −τ. x* joins the training batch."
+      : '<strong class="no">Discarded</strong>: after κ = ' + kapIn.value + " steps x* is still outside the acceptance region (f<sub>y</sub> = " + SARA_TOY.prob(end).toFixed(2) + "). Try a larger ε or κ.";
+  }
+
+  function run() {
+    if (anim) cancelAnimationFrame(anim);
+    epsOut.textContent = epsIn.value; kapOut.textContent = kapIn.value;
+    if (!SARA_TOY.challenging(sample)) { result = null; shown = 0; draw(); describe(); return; }
+    result = SARA_TOY.correct(sample, +epsIn.value, +kapIn.value);
+    if (reduce) { shown = result.path.length - 1; draw(); describe(); return; }
+    shown = 0; var last = 0;
     var tick = function (now) {
-      if (t0 === null) t0 = now;
-      var p = ((now - t0) % cycle) / cycle;
-      draw(p < 0.15 ? 0 : p > 0.7 ? 1 : (p - 0.15) / 0.55);
-      requestAnimationFrame(tick);
+      if (!last) last = now;
+      if (now - last > 160) { shown++; last = now; }
+      draw(); describe();
+      if (shown < result.path.length - 1) anim = requestAnimationFrame(tick);
     };
-    requestAnimationFrame(tick);
+    anim = requestAnimationFrame(tick);
   }
+
+  var epsOut = document.getElementById("eps-out"), kapOut = document.getElementById("kappa-out");
+  canvas.addEventListener("click", function (ev) {
+    var r = canvas.getBoundingClientRect();
+    sample = [(ev.clientX - r.left) * W / r.width, (ev.clientY - r.top) * H / r.height];
+    run();
+  });
+  epsIn.addEventListener("input", run);
+  kapIn.addEventListener("input", run);
+  document.getElementById("replay").addEventListener("click", run);
+  window.addEventListener("resize", resize);
   if (window.matchMedia) {
     var mq = window.matchMedia("(prefers-color-scheme: dark)");
-    if (mq.addEventListener) mq.addEventListener("change", function () { drawChart(document.querySelector('.chip[aria-pressed="true"]').dataset.ds); draw(1); });
+    var onTheme = function () { redrawCharts(); draw(); };
+    if (mq.addEventListener) mq.addEventListener("change", onTheme);
   }
+  new MutationObserver(function () { redrawCharts(); draw(); }).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+
+  /* Render a finished example first, so the figure is complete at rest. */
+  epsOut.textContent = epsIn.value; kapOut.textContent = kapIn.value;
+  resize();
+  result = SARA_TOY.correct(sample, +epsIn.value, +kapIn.value);
+  shown = result.path.length - 1; draw(); describe();
 })();
 </script>
 </body>
