@@ -10,6 +10,9 @@ Official PyTorch implementation of **"Self-Adaptive Revisiting Awareness for Enh
 Generalization in Classification Tasks"** by Mohammad Khalooei, Maryam Amirmazlaghani and Mohammad Mehdi
 Homayounpour.
 
+**Project page:** [khalooei.github.io/SARA](https://khalooei.github.io/SARA/), with an interactive demo of the
+correction and the main results.
+
 SARA is a training strategy that focuses on the samples a model currently finds hardest. In every
 iteration it identifies the misclassified and low-confidence samples of the mini-batch, moves each of them
 to a nearby point that the model classifies correctly with sufficient confidence and margin, and adds the
