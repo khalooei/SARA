@@ -1,0 +1,71 @@
+{
+  "criterion": "highest validation PGD-20 accuracy (validation APGD-CE breaks ties); test metrics not used",
+  "selected": "pilot_b3_xi02",
+  "selected_args": "--sara-max-correct 64 --xi 0.2 --cg-confidence-cap --sara-align 3",
+  "compute_factor": 1.461,
+  "pilots": {
+    "pilot_at": {
+      "val_clean": 67.68,
+      "val_pgd": 40.48,
+      "val_apgd": 40.12,
+      "train_time_s": 1362,
+      "args": "--epochs 10 --eval-autoattack 0"
+    },
+    "pilot_b10": {
+      "val_clean": 65.74,
+      "val_pgd": 39.86,
+      "val_apgd": 39.5,
+      "train_time_s": 2422,
+      "args": "--epochs 10 --eval-autoattack 0 --sara --sara-max-correct 64 --xi 0.3 --cg-confidence-cap --sara-align 10"
+    },
+    "pilot_b3": {
+      "val_clean": 66.28,
+      "val_pgd": 39.8,
+      "val_apgd": 39.84,
+      "train_time_s": 2112,
+      "args": "--epochs 10 --eval-autoattack 0 --sara --sara-max-correct 64 --xi 0.3 --cg-confidence-cap --sara-align 3"
+    },
+    "pilot_b3_eval": {
+      "val_clean": 65.52,
+      "val_pgd": 39.52,
+      "val_apgd": 39.32,
+      "train_time_s": 2039,
+      "args": "--epochs 10 --eval-autoattack 0 --sara --sara-max-correct 64 --xi 0.3 --cg-confidence-cap --sara-align 3 --sara-align-eval"
+    },
+    "pilot_b3_k20": {
+      "val_clean": 66.2,
+      "val_pgd": 39.68,
+      "val_apgd": 39.62,
+      "train_time_s": 2646,
+      "args": "--epochs 10 --eval-autoattack 0 --sara --sara-max-correct 64 --xi 0.3 --cg-confidence-cap --sara-align 3 --kappa 20"
+    },
+    "pilot_b3_r2": {
+      "val_clean": 66.34,
+      "val_pgd": 39.74,
+      "val_apgd": 39.62,
+      "train_time_s": 2010,
+      "args": "--epochs 10 --eval-autoattack 0 --sara --sara-max-correct 64 --xi 0.3 --cg-confidence-cap --sara-align 3 --sara-epsilon 0.062745"
+    },
+    "pilot_b3_xi02": {
+      "val_clean": 66.72,
+      "val_pgd": 40.36,
+      "val_apgd": 40.08,
+      "train_time_s": 1990,
+      "args": "--epochs 10 --eval-autoattack 0 --sara --sara-max-correct 64 --xi 0.2 --cg-confidence-cap --sara-align 3"
+    },
+    "pilot_b6": {
+      "val_clean": 66.5,
+      "val_pgd": 40.2,
+      "val_apgd": 39.84,
+      "train_time_s": 2205,
+      "args": "--epochs 10 --eval-autoattack 0 --sara --sara-max-correct 64 --xi 0.3 --cg-confidence-cap --sara-align 6"
+    },
+    "pilot_b6_eval": {
+      "val_clean": 65.4,
+      "val_pgd": 38.04,
+      "val_apgd": 37.9,
+      "train_time_s": 2123,
+      "args": "--epochs 10 --eval-autoattack 0 --sara --sara-max-correct 64 --xi 0.3 --cg-confidence-cap --sara-align 6 --sara-align-eval"
+    }
+  }
+}

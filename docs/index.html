@@ -169,6 +169,16 @@ svg .bar-sara { fill: var(--accent); }
 .rank-list .sara .name { font-weight: 600; }
 .rank-list .val { font: 500 0.82rem/1 var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; }
 .note { font-size: var(--step--1); color: var(--muted); max-width: 52rem; }
+.results { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.results table { border-collapse: collapse; width: 100%; min-width: 40rem; font-size: var(--step--1); font-variant-numeric: tabular-nums; }
+.results th, .results td { padding: 0.65rem 1rem; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.results th:first-child, .results td:first-child { text-align: left; }
+.results thead th { font-weight: 500; color: var(--muted); }
+.results tbody tr:last-child > * { border-bottom: 0; }
+.results .group td { font: 500 0.78rem/1.4 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); text-align: left; background: var(--sunken); }
+.results .sara td { font-weight: 600; }
+.results .sara td:first-child { color: var(--accent); }
+.subhead { font: 600 var(--step-1)/1.3 var(--font-display); margin-top: 1rem; }
 .note b { color: var(--fg); font-weight: 500; }
 
 /* Theory */
@@ -263,10 +273,10 @@ footer .frame { display: flex; flex-wrap: wrap; justify-content: space-between; 
 <section aria-label="Key numbers" style="padding-block: 0 4.5rem; border-top: 0;">
   <div class="frame">
     <div class="numbers">
-      <div class="number"><b>+16.0<small>pts</small></b><span>robust accuracy, AT-MART on MNIST under APGD (ε = 0.2)</span></div>
-      <div class="number"><b>20<small>/ 20</small></b><span>method and benchmark settings improved under APGD</span></div>
-      <div class="number"><b>5<small>/ 5</small></b><span>methods ranked above their own base method with SARA</span></div>
-      <div class="number"><b>3</b><span>proven properties: convergence, consistency, certified neighborhood</span></div>
+      <div class="number"><b>+1.8<small>pts</small></b><span>AutoAttack accuracy that the acceptance test adds on CIFAR10 (3 seeds, McNemar p = 2·10<sup>−8</sup>)</span></div>
+      <div class="number"><b>3<small>/ 3</small></b><span>seeds with lower calibration error under attack than PGD training, CIFAR10 and SVHN</span></div>
+      <div class="number"><b>0.00<small>pts</small></b><span>accuracy removed by the black-box Square attack after AutoAttack: no gradient masking</span></div>
+      <div class="number"><b>4</b><span>proven properties, the alignment bound verified on 3,529 accepted corrections</span></div>
     </div>
   </div>
 </section>
@@ -281,10 +291,10 @@ footer .frame { display: flex; flex-wrap: wrap; justify-content: space-between; 
     <div class="highlights">
       <div class="highlight"><span class="tag">Loss</span><h3>Confidence Guard loss</h3><p>A cross-entropy pull toward the true class plus a hinge penalty on the margin. It bounds the misclassification error and encodes the acceptance criterion exactly.</p></div>
       <div class="highlight"><span class="tag">Integration</span><h3>A plug-in for adversarial training</h3><p>SARA wraps the base loss of standard training or of PGD, TRADES, MART and LSA adversarial training without changing it.</p></div>
-      <div class="highlight"><span class="tag">Robustness</span><h3>Up to 16 points more robust accuracy</h3><p>With per-method tuning, SARA improves the robust accuracy of every base method in every configuration tested on MNIST, CIFAR10 and SVHN.</p></div>
+      <div class="highlight"><span class="tag">Robustness</span><h3>As robust as PGD training, under AutoAttack</h3><p>With the standard ResNet18 at ε = 8/255 and three seeds, SARA keeps the AutoAttack accuracy of adversarial training and lowers its calibration error under attack on every seed.</p></div>
       <div class="highlight"><span class="tag">Theory</span><h3>A provable inner correction</h3><p>The correction converges under a standard smoothness assumption, and every accepted sample certifies a robust neighborhood.</p></div>
       <div class="highlight"><span class="tag">Scale</span><h3>A class-count-relative threshold</h3><p>The confidence threshold is set relative to chance level, ξ · 10 / C, so the acceptance criterion stays meaningful on CIFAR100 and Tiny-ImageNet-200.</p></div>
-      <div class="highlight"><span class="tag">Engineering</span><h3>Batched and controllable</h3><p>All challenging samples are corrected in one tensor operation, and a correction budget and a confidence cap address the instabilities analyzed in the paper.</p></div>
+      <div class="highlight"><span class="tag">Alignment</span><h3>Corrections as targets</h3><p>Each accepted correction becomes a fixed target for the adversarial prediction of the same sample, a term that stays active after acceptance and has a provable bound.</p></div>
     </div>
   </div>
 </section>
@@ -325,7 +335,7 @@ footer .frame { display: flex; flex-wrap: wrap; justify-content: space-between; 
         <text x="695" y="110" text-anchor="middle" class="sub">margin ≤ −τ</text>
         <text x="880" y="72" text-anchor="middle" font-size="16" font-weight="600">Update θ</text>
         <text x="880" y="94" text-anchor="middle" class="sub">Loss_base(B)</text>
-        <text x="880" y="110" text-anchor="middle" class="sub">+ Loss_CG(S*)</text>
+        <text x="880" y="110" text-anchor="middle" class="sub">+ β · Align(S*)</text>
         <text x="20" y="24" class="sub">ONE TRAINING ITERATION</text>
       </svg>
     </div>
@@ -336,7 +346,8 @@ footer .frame { display: flex; flex-wrap: wrap; justify-content: space-between; 
           <tr><th scope="row">Margin</th><td>h(x, y) = max<sub>j≠y</sub> f<sub>j</sub>(x) − f<sub>y</sub>(x)</td></tr>
           <tr><th scope="row">Confidence Guard loss</th><td>L<sub>CG</sub>(x, y) = CE(f(x), y) + λ<sub>margin</sub> · ReLU(h(x, y) + τ)</td></tr>
           <tr><th scope="row">Inner update</th><td>δ ← Π<sub>Δ</sub>(δ − α ∇<sub>δ</sub> L<sub>CG</sub>(x + δ, y)), Δ = {δ : ‖δ‖<sub>∞</sub> ≤ ε, x + δ ∈ [0, 1]<sup>d</sup>}</td></tr>
-          <tr><th scope="row">Outer objective</th><td>Loss<sub>SARA</sub> = Loss<sub>base</sub>(B) + Loss<sub>CG</sub>(S*)</td></tr>
+          <tr><th scope="row">Alignment</th><td>Align(S*) = (1/|B|) Σ<sub>s∈S*</sub> KL(f(x*<sub>s</sub>) ‖ f(x<sup>adv</sup><sub>s</sub>)), with f(x*<sub>s</sub>) held fixed</td></tr>
+          <tr><th scope="row">Outer objective</th><td>Loss<sub>SARA</sub> = Loss<sub>base</sub>(B) + Loss<sub>CG,cap</sub>(S*) + β · Align(S*)</td></tr>
         </tbody>
       </table>
     </div>
@@ -346,10 +357,30 @@ footer .frame { display: flex; flex-wrap: wrap; justify-content: space-between; 
 <section id="impact" aria-labelledby="impact-title">
   <div class="frame">
     <div class="section-head column">
-      <p class="eyebrow">Impact</p>
-      <h2 id="impact-title">More robust in every tested setting</h2>
-      <p class="lede">With the hyperparameters of each method tuned individually, adding SARA raised the robust accuracy of all five base methods on MNIST, CIFAR10 and SVHN.</p>
+      <p class="eyebrow">Evidence</p>
+      <h2 id="impact-title">Measured under the standard protocol</h2>
+      <p class="lede">ResNet18 with a 3×3 stem, ε = 8/255, PGD-10 training, weight averaging, three seeds with identical initializations and mini-batches, and every SARA setting chosen on a validation split. AutoAttack runs all four stages on 2,000 test images.</p>
     </div>
+
+    <div class="results" role="region" aria-label="Standard-protocol results" tabindex="0">
+      <table>
+        <thead><tr><th scope="col">Method</th><th scope="col">Clean</th><th scope="col">PGD-20</th><th scope="col">AutoAttack</th><th scope="col">Calibration error under PGD-20</th><th scope="col">Cost</th></tr></thead>
+        <tbody>
+          <tr class="group"><td colspan="6">CIFAR10, 30 epochs</td></tr>
+          <tr><td>AT-PGD</td><td>80.52</td><td>49.95</td><td>46.80</td><td>8.54</td><td>1.00×</td></tr>
+          <tr class="sara"><td>AT-PGD + SARA</td><td>80.27</td><td>49.92</td><td>46.78</td><td>7.72</td><td>1.45×</td></tr>
+          <tr><td>SARA without acceptance test</td><td>78.22</td><td>49.26</td><td>45.00</td><td>1.78</td><td>1.49×</td></tr>
+          <tr class="group"><td colspan="6">SVHN, 20 epochs</td></tr>
+          <tr><td>AT-PGD</td><td>90.91</td><td>49.49</td><td>41.38</td><td>16.84</td><td>1.00×</td></tr>
+          <tr class="sara"><td>AT-PGD + SARA</td><td>91.00</td><td>49.89</td><td>41.27</td><td>14.84</td><td>1.35×</td></tr>
+          <tr><td>SARA without acceptance test</td><td>90.98</td><td>50.50</td><td>41.13</td><td>13.28</td><td>1.35×</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Accuracies and calibration error in %, means over three seeds; calibration error before temperature scaling. SARA matches the robustness of PGD adversarial training on both datasets. On CIFAR10, removing the acceptance test costs 2.1 points of clean and 1.8 points of AutoAttack accuracy on every seed; on SVHN it changes neither. Training AT-PGD for as long as SARA takes lowers its own robustness. Per-image McNemar tests, temperature-scaled calibration, L2 and corruption results are in Appendix D of the paper and in the <a href="https://github.com/khalooei/SARA/tree/main/results/revision2/standard">released records</a>.</p>
+
+    <h3 class="subhead">Tuned protocol</h3>
+    <p class="note">With the hyperparameters of each method tuned individually (Table 3 of the paper), adding SARA raised the robust accuracy of all five base methods. The paper's controlled study attributes most of these margins to per-method tuning and training settings.</p>
 
     <div class="panel">
       <div class="panel-head">
@@ -389,7 +420,7 @@ footer .frame { display: flex; flex-wrap: wrap; justify-content: space-between; 
       </div>
     </div>
 
-    <p class="note"><b>How these numbers were obtained.</b> All values are the accuracies (%) reported in Tables 3 and 16 of the paper, with the hyperparameters of each method tuned individually. Under a shared training configuration without per-method tuning, the stabilized SARA variants perform on par with AT-PGD; the paper analyzes this setting, and the causes and remedies of the differences, in Sections 4.4 to 4.7.</p>
+    <p class="note"><b>How these numbers were obtained.</b> The charts above show the tuned protocol (Tables 3 and 19 of the paper). The run records of every controlled and standard-protocol experiment are in the <a href="https://github.com/khalooei/SARA/tree/main/results">results</a> directory.</p>
   </div>
 </section>
 
@@ -403,6 +434,7 @@ footer .frame { display: flex; flex-wrap: wrap; justify-content: space-between; 
       <article class="theorem"><span class="eyebrow">Proposition 1</span><h3>Convergence</h3><p>Every iterate stays in the admissible set. Under a standard smoothness assumption, the Confidence Guard loss decreases monotonically and the correction reaches an approximate stationary point at rate <code>O(1/K)</code>.</p></article>
       <article class="theorem"><span class="eyebrow">Proposition 2</span><h3>Consistency</h3><p>The Confidence Guard loss upper-bounds the misclassification indicator, and its two terms encode the confidence and margin conditions of the acceptance region exactly.</p></article>
       <article class="theorem"><span class="eyebrow">Proposition 3</span><h3>Certified neighborhood</h3><p>Under the current model, an accepted sample is surrounded by a ball of radius <code>min{r, τ / L<sub>h</sub>}</code> on which the prediction does not change.</p></article>
+      <article class="theorem"><span class="eyebrow">Proposition 4</span><h3>Alignment</h3><p>If the adversarial prediction is within KL divergence <code>η</code> of the accepted correction, its confidence and margin fall short of the acceptance criterion by at most <code>√(η/2)</code> and <code>√(2η)</code>.</p></article>
       <article class="theorem"><span class="eyebrow">Interpretation</span><h3>Vicinal risk minimization</h3><p>The outer objective adds to the empirical risk a model-dependent vicinity that is concentrated near the decision boundary.</p></article>
     </div>
   </div>
@@ -421,16 +453,19 @@ footer .frame { display: flex; flex-wrap: wrap; justify-content: space-between; 
 <pre id="cli">git clone https://github.com/khalooei/SARA.git
 cd SARA && pip install -e .
 
-python train.py --dataset mnist --model lenet \
-    --base-loss pgd --sara --epochs 20 \
-    --eval-apgd --out-dir runs/mnist/at_pgd_sara</pre>
+python train.py --dataset cifar10 --model resnet18-cifar \
+    --base-loss pgd --at-epsilon 0.031373 --pgd-steps 10 \
+    --sara --sara-align 3 --xi 0.2 --sara-max-correct 64 \
+    --cg-confidence-cap --ema-decay 0.999 --epochs 30 \
+    --eval-apgd --eval-autoattack 1000 --out-dir runs/cifar10/sara</pre>
       </div>
       <div class="code">
         <div class="label-row">Python <button class="copy" type="button" id="copy-api" data-target="api">Copy</button></div>
 <pre id="api">from sara import SARAConfig, build_base_loss, sara_training_step
 
 base_loss = build_base_loss("pgd")   # ce, pgd, trades, mart
-cfg = SARAConfig(epsilon=0.2, tau=0.05, xi=0.5, kappa=10)
+cfg = SARAConfig(epsilon=8/255, xi=0.2, kappa=10, max_batch_correct=64,
+                 cg_confidence_cap=True, align_weight=3.0)
 
 for x, y in train_loader:
     stats = sara_training_step(model, optimizer, x, y,

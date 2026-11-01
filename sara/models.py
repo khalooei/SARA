@@ -44,6 +44,16 @@ def resnet18(in_channels: int = 3, num_classes: int = 10) -> nn.Module:
     return model
 
 
+def resnet18_cifar(in_channels: int = 3, num_classes: int = 10) -> nn.Module:
+    """ResNet18 with the small-image stem used in the adversarial-training literature
+    (Madry et al., 2018; Rice et al., 2020): a 3x3, stride-1 first convolution and no max-pooling,
+    so that 32x32 inputs reach the first residual stage at full resolution."""
+    model = torchvision.models.resnet18(weights=None, num_classes=num_classes)
+    model.conv1 = nn.Conv2d(in_channels, 64, kernel_size=3, stride=1, padding=1, bias=False)
+    model.maxpool = nn.Identity()
+    return model
+
+
 def build_model(name: str, dataset: str) -> nn.Module:
     from .data import NUM_CLASSES
     in_channels = 1 if dataset == "mnist" else 3
@@ -53,4 +63,6 @@ def build_model(name: str, dataset: str) -> nn.Module:
         return LeNet(in_channels=in_channels, num_classes=num_classes, input_size=input_size)
     elif name == "resnet18":
         return resnet18(in_channels=in_channels, num_classes=num_classes)
+    elif name == "resnet18-cifar":
+        return resnet18_cifar(in_channels=in_channels, num_classes=num_classes)
     raise ValueError(f"Unknown model: {name}")

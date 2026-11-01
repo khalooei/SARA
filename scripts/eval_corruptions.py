@@ -12,7 +12,7 @@ sys.path.insert(0, REPO_ROOT)
 import torch
 import torch.nn.functional as F
 
-from sara.data import get_loaders
+from sara.data import get_gpu_loaders, get_loaders
 from sara.models import build_model
 
 
@@ -85,16 +85,23 @@ if __name__ == "__main__":
     p.add_argument("--test-subset", type=int, default=2000)
     p.add_argument("--label", default="model")
     p.add_argument("--out", default=os.path.join(REPO_ROOT, "runs", "corruption", "corruption.jsonl"))
+    p.add_argument("--gpu-loader", action="store_true",
+                   help="read the test set from the local tensor cache (as in training) and fix the random seed")
     args = p.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    _, test_loader = get_loaders(args.dataset, batch_size=256, test_subset=args.test_subset)
+    if args.gpu_loader:
+        torch.manual_seed(0)
+        _, _, test_loader = get_gpu_loaders(args.dataset, augment=False, test_subset=args.test_subset,
+                                            eval_batch_size=500, device=device)
+    else:
+        _, test_loader = get_loaders(args.dataset, batch_size=256, test_subset=args.test_subset)
     model = build_model(args.model, args.dataset).to(device)
     model.load_state_dict(torch.load(args.checkpoint, map_location=device))
 
     out = evaluate_corruptions(model, test_loader, device)
     out["label"] = args.label
-    out["checkpoint"] = args.checkpoint
+    out["checkpoint"] = os.path.relpath(args.checkpoint)
     print(json.dumps(out, indent=2))
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     with open(args.out, "a") as f:

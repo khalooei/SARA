@@ -1,0 +1,16 @@
+{
+  "run_dir": "runs/std/svhn/at_pgd_sara/seed0",
+  "n_scanned": 50000,
+  "n_challenging": 3294,
+  "n_accepted": 1035,
+  "tau": 0.05,
+  "threshold_tau2_over_2": 0.0012500000000000002,
+  "eta_p10": 0.1728820502758026,
+  "eta_median": 0.3637451231479645,
+  "eta_p90": 0.757267415523529,
+  "eta_mean": 0.41471347212791443,
+  "frac_eta_below_threshold": 0.0,
+  "frac_confidence_bound_holds": 1.0,
+  "frac_margin_bound_holds": 1.0,
+  "frac_adv_correct": 0.0
+}

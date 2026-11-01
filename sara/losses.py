@@ -27,6 +27,10 @@ def boosted_ce(logits: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
 class BaseLoss:
     name = "base"
     supports_sample_weight = False
+    # Logits of the adversarial examples of the last call (None for clean losses); used by
+    # the alignment term of SARA, which reuses the attack of the base loss.
+    last_adv_logits = None
+    last_adv_x = None
 
     def compute(self, model: nn.Module, x: torch.Tensor, y: torch.Tensor, epsilon: float,
                 pgd_steps: int = 10, pgd_alpha: float = None, sample_weight: torch.Tensor = None) -> torch.Tensor:
@@ -59,6 +63,8 @@ class PGDATLoss(BaseLoss):
         model.train()
         with amp_ctx():
             logits = model(x_adv)
+        self.last_adv_logits = logits.float()
+        self.last_adv_x = x_adv
         per_sample = F.cross_entropy(logits.float(), y, reduction="none")
         if sample_weight is not None:
             return (sample_weight * per_sample).mean()
@@ -91,6 +97,7 @@ class TRADESLoss(BaseLoss):
         with amp_ctx():
             logits = model(x).float()
             logits_adv = model(x_adv).float()
+        self.last_adv_logits = logits_adv
         loss_natural = F.cross_entropy(logits, y)
         loss_robust = F.kl_div(F.log_softmax(logits_adv, dim=1), F.softmax(logits, dim=1),
                                 reduction="batchmean")
@@ -112,6 +119,7 @@ class MARTLoss(BaseLoss):
         with amp_ctx():
             logits = model(x).float()
             logits_adv = model(x_adv).float()
+        self.last_adv_logits = logits_adv
         bce = boosted_ce(logits_adv, y).mean()
         kl = F.kl_div(F.log_softmax(logits_adv, dim=1), F.softmax(logits, dim=1),
                        reduction="none").sum(dim=1)
@@ -120,11 +128,52 @@ class MARTLoss(BaseLoss):
         return bce + self.beta * penalty
 
 
+class FATLoss(BaseLoss):
+    """Friendly Adversarial Training (Zhang et al., 2020): PGD is stopped for each
+    sample as soon as it is misclassified. The early-stopped example is typically
+    closer to the decision boundary than a full-strength PGD example, which preserves
+    more clean accuracy. Exposed as a base loss so that SARA can wrap it.
+    """
+    name = "fat"
+    supports_sample_weight = True
+
+    def compute(self, model, x, y, epsilon, pgd_steps=10, pgd_alpha=None, sample_weight=None):
+        pgd_alpha = pgd_alpha or (epsilon / 4.0)
+        model.eval()
+        x_adv = x.detach().clone()
+        delta = torch.zeros_like(x)
+        stopped = torch.zeros(x.shape[0], dtype=torch.bool, device=x.device)
+        for _ in range(pgd_steps):
+            x_cur = torch.clamp(x + delta, 0, 1).detach().requires_grad_(True)
+            with amp_ctx():
+                logits = model(x_cur)
+            pred = logits.argmax(dim=1)
+            newly_wrong = (~stopped) & (pred != y)
+            x_adv[newly_wrong] = x_cur[newly_wrong].detach()
+            stopped = stopped | newly_wrong
+            if bool(stopped.all()):
+                break
+            loss = F.cross_entropy(logits.float(), y)
+            grad = torch.autograd.grad(loss, x_cur)[0]
+            with torch.no_grad():
+                delta = (delta + pgd_alpha * grad.sign()).clamp(-epsilon, epsilon)
+        x_adv[~stopped] = torch.clamp(x + delta, 0, 1)[~stopped].detach()
+        model.train()
+        with amp_ctx():
+            logits = model(x_adv)
+        self.last_adv_logits = logits.float()
+        per_sample = F.cross_entropy(logits.float(), y, reduction="none")
+        if sample_weight is not None:
+            return (sample_weight * per_sample).mean()
+        return per_sample.mean()
+
+
 BASE_LOSSES = {
     "ce": StandardLoss,
     "pgd": PGDATLoss,
     "trades": TRADESLoss,
     "mart": MARTLoss,
+    "fat": FATLoss,
 }
 
 

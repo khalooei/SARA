@@ -4,7 +4,7 @@ import pytest
 import torch
 from PIL import Image
 
-from sara.data import DEFAULT_EPSILON, NUM_CLASSES
+from sara.data import DEFAULT_EPSILON, NUM_CLASSES, GPUTensorLoader
 from sara.models import build_model
 from sara.tiny_imagenet import TinyImageNet
 
@@ -16,6 +16,8 @@ from sara.tiny_imagenet import TinyImageNet
         ("resnet18", "cifar10", (2, 3, 32, 32)),
         ("resnet18", "cifar100", (2, 3, 32, 32)),
         ("resnet18", "tinyimagenet", (2, 3, 64, 64)),
+        ("resnet18-cifar", "cifar10", (2, 3, 32, 32)),
+        ("resnet18-cifar", "svhn", (2, 3, 32, 32)),
     ],
 )
 def test_model_output_shapes(model, dataset, shape):
@@ -51,3 +53,37 @@ def test_tiny_imagenet_reader(tmp_path):
     test = TinyImageNet(os.fspath(tmp_path), split="val")
     assert len(train) == 6 and len(test) == 2
     assert [label for _, label in test.samples] == [0, 1]
+
+
+def test_gpu_tensor_loader_crop_and_batches():
+    import torch.nn.functional as F
+
+    from sara.data import GPUTensorLoader
+    x = torch.randint(0, 256, (10, 3, 8, 8), dtype=torch.uint8)
+    y = torch.arange(10)
+    loader = GPUTensorLoader(x, y, batch_size=4, shuffle=True, drop_last=True, crop_padding=2, device="cpu")
+    assert len(loader) == 2
+    seen = []
+    for xb, yb in loader:
+        assert xb.shape == (4, 3, 8, 8) and xb.max() <= 1.0
+        padded = F.pad(x[yb].float() / 255, (2, 2, 2, 2))
+        for i in range(4):
+            crops = [padded[i, :, a:a + 8, b:b + 8] for a in range(5) for b in range(5)]
+            assert any(torch.equal(c, xb[i]) or torch.equal(c.flip(2), xb[i]) for c in crops)
+        seen += yb.tolist()
+    assert len(set(seen)) == 8
+
+
+def test_seeded_loader_order_is_independent_of_other_random_draws():
+    x = torch.randint(0, 256, (64, 3, 8, 8), dtype=torch.uint8)
+    y = torch.arange(64)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    a = GPUTensorLoader(x, y, 16, shuffle=True, drop_last=True, crop_padding=2, device=device, seed=3)
+    b = GPUTensorLoader(x, y, 16, shuffle=True, drop_last=True, crop_padding=2, device=device, seed=3)
+    batches_a = [(xb.clone(), yb.clone()) for xb, yb in a]
+    batches_b = []
+    for xb, yb in b:
+        torch.rand(1000, device=device)  # random numbers drawn by the training step in between
+        batches_b.append((xb, yb))
+    for (xa, ya), (xb, yb) in zip(batches_a, batches_b):
+        assert torch.equal(ya, yb) and torch.equal(xa, xb)

@@ -15,7 +15,7 @@ from .confidence_guard import (
 from .losses import build_base_loss
 from .trainer import sara_training_step
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 
 __all__ = [
     "SARAConfig",

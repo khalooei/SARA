@@ -1,0 +1,33 @@
+\multicolumn{6}{l}{\textit{MNIST} ($\varepsilon=0.2$)} \\
+Shared configuration (Table~\ref{tab:repro}) & AT-PGD & 98.07{\scriptsize$\pm$0.13} & 89.54{\scriptsize$\pm$0.65} & 88.76{\scriptsize$\pm$0.81} & 87.47{\scriptsize$\pm$0.66} \\
+ & AT-PGD+SARA & \textbf{98.08{\scriptsize$\pm$0.09}} & \textbf{89.83{\scriptsize$\pm$0.92}} & \textbf{89.11{\scriptsize$\pm$0.94}} & \textbf{88.03{\scriptsize$\pm$0.74}} \\
+ & $\Delta$ (SARA) & +0.01 & +0.29 & +0.35 & +0.57 \\
+Tuned AT-PGD configuration (best of 11 trials) & AT-PGD & 98.32{\scriptsize$\pm$0.16} & \textbf{91.83{\scriptsize$\pm$0.46}} & \textbf{91.17{\scriptsize$\pm$0.30}} & \textbf{89.97{\scriptsize$\pm$0.25}} \\
+ & AT-PGD+SARA & \textbf{98.33{\scriptsize$\pm$0.15}} & 91.33{\scriptsize$\pm$0.27} & 90.59{\scriptsize$\pm$0.43} & 89.40{\scriptsize$\pm$0.79} \\
+ & $\Delta$ (SARA) & +0.02 & -0.50 & -0.57 & -0.57 \\
+Shared configuration, twice the epochs & AT-PGD & \textbf{98.47{\scriptsize$\pm$0.08}} & 91.38{\scriptsize$\pm$0.33} & 90.70{\scriptsize$\pm$0.26} & 89.33{\scriptsize$\pm$0.39} \\
+ & AT-PGD+SARA & 98.45{\scriptsize$\pm$0.12} & \textbf{91.84{\scriptsize$\pm$0.31}} & \textbf{90.98{\scriptsize$\pm$0.20}} & \textbf{90.17{\scriptsize$\pm$0.17}} \\
+ & $\Delta$ (SARA) & -0.03 & +0.46 & +0.27 & +0.83 \\
+\midrule
+\multicolumn{6}{l}{\textit{CIFAR10} ($\varepsilon=0.03$)} \\
+Shared configuration (Table~\ref{tab:repro}) & AT-PGD & \textbf{49.51{\scriptsize$\pm$0.10}} & 30.14{\scriptsize$\pm$0.21} & 30.08{\scriptsize$\pm$0.16} & 25.50{\scriptsize$\pm$0.29} \\
+ & AT-PGD+SARA & 49.16{\scriptsize$\pm$0.18} & \textbf{30.47{\scriptsize$\pm$0.13}} & \textbf{30.33{\scriptsize$\pm$0.05}} & \textbf{26.33{\scriptsize$\pm$0.17}} \\
+ & $\Delta$ (SARA) & -0.35 & +0.32 & +0.26 & +0.83 \\
+Tuned AT-PGD configuration (best of 11 trials) & AT-PGD & \textbf{56.53{\scriptsize$\pm$0.36}} & 33.87{\scriptsize$\pm$0.17} & 33.72{\scriptsize$\pm$0.14} & \textbf{32.17{\scriptsize$\pm$0.25}} \\
+ & AT-PGD+SARA & 56.11{\scriptsize$\pm$0.44} & \textbf{34.31{\scriptsize$\pm$0.06}} & \textbf{34.14{\scriptsize$\pm$0.04}} & 32.10{\scriptsize$\pm$0.78} \\
+ & $\Delta$ (SARA) & -0.41 & +0.44 & +0.42 & -0.07 \\
+Shared configuration, twice the epochs & AT-PGD & \textbf{54.81{\scriptsize$\pm$0.10}} & 31.29{\scriptsize$\pm$0.12} & 31.20{\scriptsize$\pm$0.07} & 28.07{\scriptsize$\pm$0.50} \\
+ & AT-PGD+SARA & 54.22{\scriptsize$\pm$0.13} & \textbf{32.72{\scriptsize$\pm$0.10}} & \textbf{32.73{\scriptsize$\pm$0.08}} & \textbf{29.97{\scriptsize$\pm$0.78}} \\
+ & $\Delta$ (SARA) & -0.59 & +1.43 & +1.53 & +1.90 \\
+\midrule
+\multicolumn{6}{l}{\textit{SVHN} ($\varepsilon=0.03$)} \\
+Shared configuration (Table~\ref{tab:repro}) & AT-PGD & \textbf{86.10{\scriptsize$\pm$0.21}} & 41.24{\scriptsize$\pm$0.51} & 39.37{\scriptsize$\pm$0.56} & 33.33{\scriptsize$\pm$0.42} \\
+ & AT-PGD+SARA & 85.98{\scriptsize$\pm$0.11} & \textbf{41.77{\scriptsize$\pm$0.09}} & \textbf{40.03{\scriptsize$\pm$0.06}} & \textbf{33.67{\scriptsize$\pm$0.09}} \\
+ & $\Delta$ (SARA) & -0.12 & +0.53 & +0.66 & +0.33 \\
+Tuned AT-PGD configuration (best of 11 trials) & AT-PGD & 87.07{\scriptsize$\pm$0.11} & 44.82{\scriptsize$\pm$0.24} & 43.18{\scriptsize$\pm$0.26} & 36.53{\scriptsize$\pm$0.29} \\
+ & AT-PGD+SARA & \textbf{87.31{\scriptsize$\pm$0.15}} & \textbf{45.63{\scriptsize$\pm$0.13}} & \textbf{43.95{\scriptsize$\pm$0.18}} & \textbf{37.00{\scriptsize$\pm$0.37}} \\
+ & $\Delta$ (SARA) & +0.25 & +0.81 & +0.77 & +0.47 \\
+Shared configuration, twice the epochs & AT-PGD & 87.92{\scriptsize$\pm$0.15} & 37.69{\scriptsize$\pm$0.40} & 35.40{\scriptsize$\pm$0.43} & 31.23{\scriptsize$\pm$1.03} \\
+ & AT-PGD+SARA & \textbf{88.20{\scriptsize$\pm$0.11}} & \textbf{38.86{\scriptsize$\pm$0.06}} & \textbf{36.64{\scriptsize$\pm$0.04}} & \textbf{32.07{\scriptsize$\pm$0.62}} \\
+ & $\Delta$ (SARA) & +0.28 & +1.17 & +1.24 & +0.83 \\
+\bottomrule

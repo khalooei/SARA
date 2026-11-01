@@ -1,0 +1,16 @@
+{
+  "run_dir": "runs/std/cifar10/at_pgd_sara/seed2",
+  "n_scanned": 45000,
+  "n_challenging": 5344,
+  "n_accepted": 142,
+  "tau": 0.05,
+  "threshold_tau2_over_2": 0.0012500000000000002,
+  "eta_p10": 0.23095089197158813,
+  "eta_median": 0.5231020450592041,
+  "eta_p90": 0.856517493724823,
+  "eta_mean": 0.5470055341720581,
+  "frac_eta_below_threshold": 0.0,
+  "frac_confidence_bound_holds": 1.0,
+  "frac_margin_bound_holds": 1.0,
+  "frac_adv_correct": 0.0
+}

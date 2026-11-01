@@ -1,0 +1,74 @@
+{
+ "run_dir": "runs/std/cifar10/at_pgd_sara_acceptall/seed2",
+ "checkpoint": "model_ema.pt",
+ "n": 5000,
+ "seed": 0,
+ "epsilon": 0.031373,
+ "precision": "float32",
+ "clean_acc": 77.73999571800232,
+ "n_square": 2000,
+ "autoattack_acc": 45.3000009059906,
+ "whitebox_acc": 45.159998536109924,
+ "whitebox_acc_on_square_subset": 45.3000009059906,
+ "square_extra_drop": 0.0,
+ "stages": [
+  {
+   "attack": "APGD-CE",
+   "images": 5000,
+   "robust_acc_after": 49.24,
+   "time_s": 19
+  },
+  {
+   "attack": "APGD-T",
+   "images": 5000,
+   "robust_acc_after": 45.16,
+   "time_s": 99
+  },
+  {
+   "attack": "FAB-T",
+   "images": 5000,
+   "robust_acc_after": 45.16,
+   "time_s": 181
+  },
+  {
+   "attack": "Square",
+   "images": 2000,
+   "robust_acc_after": 45.3,
+   "time_s": 906
+  }
+ ],
+ "eps_sweep": {
+  "n": 1000,
+  "attack": "PGD-50, step 2.5*eps/50, float32",
+  "results": [
+   {
+    "eps_255": 2.0,
+    "pgd50_acc": 72.4
+   },
+   {
+    "eps_255": 4.0,
+    "pgd50_acc": 65.7
+   },
+   {
+    "eps_255": 8.0,
+    "pgd50_acc": 48.6
+   },
+   {
+    "eps_255": 12.0,
+    "pgd50_acc": 32.8
+   },
+   {
+    "eps_255": 16.0,
+    "pgd50_acc": 18.9
+   },
+   {
+    "eps_255": 32.0,
+    "pgd50_acc": 1.2
+   }
+  ]
+ },
+ "time_s": {
+  "autoattack": 1207,
+  "total": 1323
+ }
+}

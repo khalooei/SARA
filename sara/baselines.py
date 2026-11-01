@@ -37,7 +37,7 @@ def fat_training_step(model, optimizer, x, y, base_loss, cfg, base_loss_kwargs=N
     is trained on the resulting adversarial examples.
     """
     t0 = time.perf_counter()
-    epsilon = cfg.epsilon
+    epsilon = cfg.base_eps()
     alpha = epsilon / 4.0
     model.eval()
     x_adv = x.detach().clone()
@@ -80,7 +80,7 @@ def gairat_training_step(model, optimizer, x, y, base_loss, cfg, base_loss_kwarg
     so samples that are misclassified early receive larger weights.
     """
     t0 = time.perf_counter()
-    epsilon = cfg.epsilon
+    epsilon = cfg.base_eps()
     alpha = epsilon / 4.0
     model.eval()
     x_adv = x.detach().clone()

@@ -1,0 +1,26 @@
+{
+  "train_time_s": 3974.4664459228516,
+  "weights": "ema",
+  "raw": {
+    "n": 10000,
+    "clean_acc": 81.4,
+    "pgd_acc": 48.68
+  },
+  "test@0.031373": {
+    "n": 10000,
+    "clean_acc": 80.58,
+    "pgd_acc": 49.92,
+    "apgd_acc": 49.69
+  },
+  "val": {
+    "n": 5000,
+    "clean_acc": 80.98,
+    "pgd_acc": 49.58,
+    "apgd_acc": 49.4
+  },
+  "autoattack": {
+    "n": 1000,
+    "clean_acc": 81.0,
+    "autoattack_acc": 46.7
+  }
+}

@@ -37,8 +37,12 @@ and SARA can be combined with standard training or with adversarial training (PG
   pixel range; corrected samples are detached, so no gradient flows through the inner search.
 - **Class-count-relative confidence threshold.** The threshold is expressed relative to chance level
   (ξ_eff = ξ · 10 / C), which keeps it meaningful on datasets with 100 or 200 classes.
+- **Corrective alignment.** The adversarial prediction of each corrected sample is aligned with the prediction
+  at its accepted correction (`--sara-align`). The target satisfies the acceptance criterion, so the alignment
+  loss bounds how far the adversarial example falls short of the confidence and margin requirements.
 - **Stabilization options.** Correction budget, warmup, confidence-based reweighting, success-rate damping
-  and a confidence-capped CG loss, each available as a single flag.
+  and a confidence-capped CG loss, each available as a single flag. A revisiting memory and a robust
+  correction are implemented as further options.
 - **Baselines in the same pipeline.** GAIRAT, FAT and OHEM share the training and evaluation code of SARA.
 - **Tested.** Unit tests check the properties the method relies on, including the admissibility of every
   corrected sample and the bounds satisfied by the CG loss.
@@ -66,6 +70,7 @@ For a sample `(x, y)` with true-class probability `f_y(x)` and margin `h(x, y) =
 | CG loss (per sample) | `L_CG(x, y) = CE(f(x), y) + λ_margin · ReLU(h(x, y) + τ)` |
 | Inner update | `δ ← Π_Δ(δ − α ∇_δ L_CG(x + δ, y))`, with `Δ = {δ : ‖δ‖∞ ≤ ε, x + δ ∈ [0, 1]^d}` |
 | Outer objective | `Loss_SARA = Loss_base(B) + mean_{S*} L_CG` |
+| Corrective alignment | `Loss_align = (β / batch size) · Σ_{S*} KL(sg[f(x*)] ‖ f(x_adv))`, added to the outer objective |
 
 The implementation follows Algorithm 1 of the paper: [`sara/confidence_guard.py`](sara/confidence_guard.py)
 contains the challenging-set identification, the CG loss and the inner correction, and
@@ -73,16 +78,43 @@ contains the challenging-set identification, the CG loss and the inner correctio
 
 ## Results at a glance
 
-With the hyperparameters of each method tuned individually, adding SARA increases the robust accuracy of every
-base method on MNIST, CIFAR10 and SVHN, by up to 16 percentage points.
+**Standard protocol** (ResNet18 with a 3×3 stem, ε = 8/255, PGD-10 training, weight averaging; mean of three
+seeds with identical initializations and mini-batches; SARA settings chosen on a validation split; AutoAttack
+with all four stages on 2,000 test images; accuracy and calibration error in %):
+
+| | Clean | PGD-20 | AutoAttack | Calibration error under PGD-20 | Cost |
+|---|---:|---:|---:|---:|---:|
+| **CIFAR10**, AT-PGD | 80.52 | 49.95 | 46.80 | 8.54 | 1.00× |
+| **CIFAR10**, AT-PGD + SARA | 80.27 | 49.92 | 46.78 | 7.72 | 1.45× |
+| **CIFAR10**, SARA without acceptance test | 78.22 | 49.26 | 45.00 | 1.78 | 1.49× |
+| **SVHN**, AT-PGD | 90.91 | 49.49 | 41.38 | 16.84 | 1.00× |
+| **SVHN**, AT-PGD + SARA | 91.00 | 49.89 | 41.27 | 14.84 | 1.35× |
+| **SVHN**, SARA without acceptance test | 90.98 | 50.50 | 41.13 | 13.28 | 1.35× |
+
+- SARA keeps the robustness of PGD adversarial training and lowers its calibration error under attack on every
+  seed (before temperature scaling). It does not raise AutoAttack accuracy at this operating point.
+- On CIFAR10 the acceptance test is decisive: without it, clean and AutoAttack accuracy fall by 2.1 and 1.8
+  points on every seed (McNemar p = 2·10⁻⁸). On SVHN it has no significant effect.
+- Training AT-PGD for as long as SARA takes lowers its own robustness, so the extra cost does not buy a stronger
+  baseline. There is no sign of gradient masking: the Square attack removes no accuracy after the white-box
+  attacks.
+
+Per-image statistics, temperature-scaled calibration, L2 and corruption results, and every configuration and
+log are in [`results/revision2/standard/`](results/revision2/standard). The runs of Section 4.6 repeated with the
+corrected implementation are in [`results/revision2/main_corrected/`](results/revision2/main_corrected).
+
+**Tuned and controlled protocols.** With the hyperparameters of each method tuned individually, adding SARA
+increased the robust accuracy of every base method on MNIST, CIFAR10 and SVHN, by up to 16 percentage points;
+the controlled study of the paper attributes most of this margin to per-method tuning and training settings.
 
 <p align="center">
-  <img src="docs/assets/sara-results.svg" alt="Robust accuracy gained by adding SARA to each base method on MNIST, CIFAR10 and SVHN, in percentage points" width="80%">
+  <img src="docs/assets/sara-results.svg" alt="Robust accuracy gained by adding SARA to each base method on MNIST, CIFAR10 and SVHN under the tuned protocol, in percentage points" width="80%">
 </p>
 
-Under a shared training configuration without per-method tuning, the stabilized SARA variants perform on par
-with AT-PGD; the paper analyzes this setting in Sections 4.4 to 4.7. The
-[project page](https://khalooei.github.io/SARA/) has an interactive version of the figures above.
+Under one shared configuration of the controlled protocol, the corrective alignment term raises the AutoAttack
+accuracy of PGD adversarial training by about one point on CIFAR10 (+1.37 points with the corrected implementation,
+on every seed); on MNIST and SVHN the effect is within seed-to-seed variation. The
+[project page](https://khalooei.github.io/SARA/) has an interactive version of the figure above.
 
 ## Installation
 
@@ -130,22 +162,40 @@ MNIST, CIFAR10, CIFAR100 and SVHN are downloaded automatically by torchvision. F
 download [tiny-imagenet-200.zip](https://cs231n.stanford.edu/tiny-imagenet-200.zip) and unzip it into the data
 directory. Data are stored in `./data` by default; set `SARA_DATA_ROOT` to use another location.
 
+If the SVHN host (ufldl.stanford.edu) is unreachable, build the same data from the authors' copy on the Hugging Face
+hub. The script checks the image and label counts of the official release:
+
+```bash
+mkdir -p data/svhn_hf && cd data/svhn_hf
+for f in train test; do
+  curl -LO https://huggingface.co/datasets/ufldl-stanford/svhn/resolve/main/cropped_digits/$f-00000-of-00001.parquet
+done
+cd ../.. && pip install pyarrow && python scripts/svhn_from_hf.py data/svhn_hf data
+```
+
+Each dataset is converted once to a uint8 tensor cache (`data/<name>_<split>.pt`) that the GPU data loader reads.
+
 | Dataset | Classes | Input size | Model | Default ε (L∞) |
 |---|---|---|---|---|
 | MNIST | 10 | 28 × 28 | LeNet | 0.2 |
-| CIFAR10 | 10 | 32 × 32 | ResNet18 | 0.03 |
-| SVHN | 10 | 32 × 32 | ResNet18 | 0.03 |
+| CIFAR10 | 10 | 32 × 32 | ResNet18 or ResNet18-S | 0.03 (8/255 in the standard protocol) |
+| SVHN | 10 | 32 × 32 | ResNet18 or ResNet18-S | 0.03 (8/255 in the standard protocol) |
 | CIFAR100 | 100 | 32 × 32 | ResNet18 | 0.03 |
 | Tiny-ImageNet-200 | 200 | 64 × 64 | ResNet18 | 0.03 |
 
 Images are kept in `[0, 1]` without per-channel normalization, so perturbation budgets are expressed in
 pixel space.
 
+`--model resnet18` is the torchvision ResNet18 used in the controlled protocol of the paper. Its 7 × 7 stride-2 stem
+and max-pooling reduce a 32 × 32 input to 8 × 8, which limits clean accuracy on CIFAR10 and SVHN.
+`--model resnet18-cifar` (ResNet18-S) uses the 3 × 3 stride-1 stem without max-pooling that is standard for
+32 × 32 images in the adversarial-training literature.
+
 ## Training options
 
 | Option | Default | Description |
 |---|---|---|
-| `--base-loss {ce,pgd,trades,mart}` | `ce` | Base training loss |
+| `--base-loss {ce,pgd,trades,mart,fat}` | `ce` | Base training loss |
 | `--sara` | off | Enable SARA |
 | `--method {default,ohem,fat,gairat}` | `default` | Use a baseline training step instead |
 | `--sara-epsilon` | AT ε | Radius of the correction search |
@@ -160,7 +210,20 @@ pixel space.
 | `--gamma-reweight` | 0 (off) | Confidence-based reweighting of the base loss |
 | `--cg-damping` | off | Scale the CG loss by (1 − correction success rate) |
 | `--cg-confidence-cap` | off | Cap the cross-entropy term of the outer CG loss at ξ |
+| `--sara-align` | 0 (off) | Weight β of the corrective alignment term |
+| `--sara-align-natural` | 0 (off) | Align the natural prediction with the accepted correction |
+| `--nat-weight` | 0 (off) | Extra weight of natural cross-entropy, added to both the base method and SARA |
+| `--revisit-memory` | 0 (off) | Capacity of the memory of accepted corrections, rescored with the capped loss |
+| `--robust-correction` | off | Add corrected samples to the input of the adversarial base loss |
+| `--at-epsilon` | dataset default | Radius of adversarial training (the SARA radius defaults to it) |
+| `--at-eps-warmup` | 0 (off) | Ramp the training and correction radii linearly over this many epochs |
+| `--ema-decay` | 0 (off) | Exponential moving average of the weights; the averaged model is the evaluated one |
+| `--sara-align-eval` | off | Score the adversarial examples of the alignment term in evaluation mode, as its targets |
+| `--sara-accept-all` | off | Ablation: keep every correction as a target, skipping the acceptance test |
+| `--val-size` | 0 | Hold out this many training images for model selection |
+| `--eval-autoattack` | 0 (off) | Evaluate standard AutoAttack on this many test images after training |
 | `--eval-apgd` | off | Also evaluate APGD-CE accuracy (PGD-20 is always evaluated) |
+| `--data-loader {gpu,torch}` | `gpu` | Keep the dataset on the GPU and augment there, or use a torch DataLoader |
 
 Run `python train.py --help` for the complete list.
 
@@ -178,10 +241,14 @@ experiments of the paper. Outputs are written to `runs/` (set `OUT` to change it
 | `controlled_tinyimagenet.sh` | Standard training with and without SARA on Tiny-ImageNet-200 |
 | `stabilization.sh` | Correction budget, warmup, reweighting, damping and confidence cap |
 | `analysis.sh` | Hyperparameter ablation, multi-seed runs, hyperparameter search, overhead, corruptions |
+| `standard_protocol.sh` | ResNet18-S at ε = 8/255 on CIFAR10 and SVHN: SARA, compute-matched AT-PGD and ablations (Appendix D) |
 
-GPU kernels are not bit-wise deterministic, so re-runs can differ slightly from run to run. The
-tuned-protocol experiments of the paper were run with a separate framework and are not part of this
-repository.
+`experiments/summarize_standard.py RUNS_DIR` summarizes the standard-protocol runs, and
+`scripts/measure_alignment_gap.py --run-dir RUN` measures the alignment gap η of Proposition 4 on a trained model.
+
+GPU kernels are not bit-wise deterministic, so re-runs can differ slightly from run to run. The released
+records, without model weights, are in [`results/`](results). `experiments/make_tables.py` regenerates the
+LaTeX rows of the second-revision tables from `final.json`.
 
 ## Repository structure
 
@@ -195,7 +262,7 @@ SARA/
 │   ├── attacks.py           # PGD and APGD
 │   ├── evaluate.py          # clean, PGD and APGD accuracy
 │   ├── lipschitz.py         # local Lipschitz estimate
-│   ├── models.py            # LeNet and ResNet18
+│   ├── models.py            # LeNet, ResNet18 and ResNet18-S
 │   ├── data.py              # data loaders
 │   └── tiny_imagenet.py     # Tiny-ImageNet-200 dataset
 ├── train.py                 # training entry point

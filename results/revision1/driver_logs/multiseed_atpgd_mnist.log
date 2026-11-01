@@ -1,0 +1,12 @@
+{"n": 10000, "clean_acc": 97.87, "pgd_acc": 89.99, "apgd_acc": 89.24, "seed": 0, "variant": "atpgd_standard"}
+{"n": 10000, "clean_acc": 98.26, "pgd_acc": 89.17, "apgd_acc": 88.28, "seed": 1, "variant": "atpgd_standard"}
+{"n": 10000, "clean_acc": 98.25, "pgd_acc": 90.85, "apgd_acc": 90.09, "seed": 2, "variant": "atpgd_standard"}
+{"n": 10000, "clean_acc": 98.49, "pgd_acc": 82.21, "apgd_acc": 80.01, "seed": 0, "variant": "atpgd_standard_sara"}
+{"n": 10000, "clean_acc": 98.82, "pgd_acc": 86.06, "apgd_acc": 83.53, "seed": 1, "variant": "atpgd_standard_sara"}
+{"n": 10000, "clean_acc": 98.67, "pgd_acc": 84.45, "apgd_acc": 82.15, "seed": 2, "variant": "atpgd_standard_sara"}
+{"variant": "atpgd_standard", "metric": "clean_acc", "mean": 98.12666666666667, "std": 0.1815366507225338, "n": 3}
+{"variant": "atpgd_standard", "metric": "pgd_acc", "mean": 90.00333333333333, "std": 0.6859219262342361, "n": 3}
+{"variant": "atpgd_standard", "metric": "apgd_acc", "mean": 89.20333333333333, "std": 0.739384128101821, "n": 3}
+{"variant": "atpgd_standard_sara", "metric": "clean_acc", "mean": 98.66, "std": 0.13490737563231991, "n": 3}
+{"variant": "atpgd_standard_sara", "metric": "pgd_acc", "mean": 84.24, "std": 1.5787547835768156, "n": 3}
+{"variant": "atpgd_standard_sara", "metric": "apgd_acc", "mean": 81.89666666666668, "std": 1.448155915485467, "n": 3}

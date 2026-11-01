@@ -1,0 +1,6 @@
+{"n": 10000, "clean_acc": 98.42, "pgd_acc": 83.15, "apgd_acc": 80.33, "seed": 0}
+{"n": 10000, "clean_acc": 98.76, "pgd_acc": 85.05, "apgd_acc": 83.34, "seed": 1}
+{"n": 10000, "clean_acc": 98.73, "pgd_acc": 84.74, "apgd_acc": 82.59, "seed": 2}
+{"metric": "clean_acc", "mean": 98.63666666666667, "std": 0.15369522511198142, "n": 3}
+{"metric": "pgd_acc", "mean": 84.31333333333333, "std": 0.832279333450544, "n": 3}
+{"metric": "apgd_acc", "mean": 82.08666666666667, "std": 1.2793314226145214, "n": 3}

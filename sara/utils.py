@@ -1,5 +1,6 @@
-"""Training utilities: mixed-precision context, seeding, metric averaging and JSONL logging."""
+"""Training utilities: mixed-precision context, seeding, metric averaging, JSONL logging and weight averaging."""
 import contextlib
+import copy
 import json
 import os
 import random
@@ -30,9 +31,10 @@ def set_seed(seed: int, deterministic: bool = False):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
     else:
-        # Fixed input sizes: let cuDNN select the fastest algorithms, and allow
-        # TF32 matrix multiplication on supported GPUs.
-        torch.backends.cudnn.benchmark = True
+        # cuDNN autotuning stays off: the challenging and corrected subsets change size
+        # at every step, and autotuning each new shape is far slower than the default
+        # heuristics. TF32 matrix multiplication is allowed on supported GPUs.
+        torch.backends.cudnn.benchmark = False
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
 
@@ -75,3 +77,31 @@ def gpu_mem_mb():
     if torch.cuda.is_available():
         return torch.cuda.max_memory_allocated() / (1024 ** 2)
     return 0.0
+
+
+class ModelEMA:
+    """Exponential moving average of the weights of a model (weight averaging).
+
+    Floating-point parameters and buffers (including the batch-normalization statistics) are averaged with
+    decay min(decay, (1 + n) / (10 + n)) after the n-th update, so that the average is not dominated by the
+    random initialization early in training; integer buffers are copied.
+    """
+
+    def __init__(self, model: torch.nn.Module, decay: float):
+        self.module = copy.deepcopy(model).eval()
+        for p in self.module.parameters():
+            p.requires_grad_(False)
+        self.decay = decay
+        self.updates = 0
+
+    @torch.no_grad()
+    def update(self, model: torch.nn.Module):
+        self.updates += 1
+        d = min(self.decay, (1 + self.updates) / (10 + self.updates))
+        current = model.state_dict()
+        for name, avg in self.module.state_dict().items():
+            new = current[name].detach()
+            if avg.dtype.is_floating_point:
+                avg.mul_(d).add_(new, alpha=1 - d)
+            else:
+                avg.copy_(new)

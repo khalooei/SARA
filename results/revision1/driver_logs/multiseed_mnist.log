@@ -1,0 +1,12 @@
+{"n": 10000, "clean_acc": 98.98, "pgd_acc": 3.57, "apgd_acc": 2.58, "seed": 0, "variant": "standard"}
+{"n": 10000, "clean_acc": 98.96, "pgd_acc": 5.16, "apgd_acc": 3.89, "seed": 1, "variant": "standard"}
+{"n": 10000, "clean_acc": 99.01, "pgd_acc": 2.86, "apgd_acc": 1.88, "seed": 2, "variant": "standard"}
+{"n": 10000, "clean_acc": 98.54, "pgd_acc": 6.15, "apgd_acc": 4.55, "seed": 0, "variant": "standard_sara"}
+{"n": 10000, "clean_acc": 98.7, "pgd_acc": 1.05, "apgd_acc": 0.56, "seed": 1, "variant": "standard_sara"}
+{"n": 10000, "clean_acc": 98.8, "pgd_acc": 5.0, "apgd_acc": 2.37, "seed": 2, "variant": "standard_sara"}
+{"variant": "standard", "metric": "clean_acc", "mean": 98.98333333333333, "std": 0.02054804667656762, "n": 3}
+{"variant": "standard", "metric": "pgd_acc", "mean": 3.8633333333333333, "std": 0.961607450516524, "n": 3}
+{"variant": "standard", "metric": "apgd_acc", "mean": 2.783333333333333, "std": 0.833079961481623, "n": 3}
+{"variant": "standard_sara", "metric": "clean_acc", "mean": 98.68, "std": 0.10708252269472313, "n": 3}
+{"variant": "standard_sara", "metric": "pgd_acc", "mean": 4.066666666666666, "std": 2.1841601487884437, "n": 3}
+{"variant": "standard_sara", "metric": "apgd_acc", "mean": 2.493333333333333, "std": 1.6312435610771174, "n": 3}

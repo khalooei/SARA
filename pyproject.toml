@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sara"
-version = "1.0.0"
+version = "2.0.0"
 description = "Self-Adaptive Revisiting Awareness (SARA) for robust and generalizable classification"
 readme = "README.md"
 license = { file = "LICENSE" }

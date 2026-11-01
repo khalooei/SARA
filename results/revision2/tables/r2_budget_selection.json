@@ -1,0 +1,20 @@
+{
+  "mnist": {
+    "at_trials": 11,
+    "sara_trials": 11,
+    "best_at": "at_pgd_bs-half",
+    "best_sara": "at_pgd_sara_align3_xi03"
+  },
+  "cifar10": {
+    "at_trials": 11,
+    "sara_trials": 10,
+    "best_at": "at_pgd_bs-half",
+    "best_sara": "at_pgd_sara_align3_xi03"
+  },
+  "svhn": {
+    "at_trials": 11,
+    "sara_trials": 5,
+    "best_at": "at_pgd_steps10_lrhi",
+    "best_sara": "at_pgd_sara_align3_xi03"
+  }
+}

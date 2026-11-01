@@ -34,6 +34,7 @@ from .utils import amp_ctx
 @dataclass
 class SARAConfig:
     epsilon: float = 0.2          # perturbation budget of the correction search
+    base_epsilon: float = None    # perturbation budget of the adversarial base loss (default: epsilon)
     tau: float = 0.05             # margin threshold
     xi: float = 0.5               # confidence threshold
     kappa: int = 10               # maximum number of inner iterations
@@ -45,6 +46,18 @@ class SARAConfig:
     sara_warmup_epochs: int = 0   # epochs trained without the correction mechanism
     cg_damping: bool = False      # scale the CG loss by (1 - correction success rate)
     cg_confidence_cap: bool = False  # cap the cross-entropy term of the outer CG loss at xi
+    robust_correction: bool = False  # train corrected samples with the base loss, not only the CG loss
+    revisit_memory: int = 0       # capacity of the memory of corrected samples (0 = no revisiting)
+    revisit_batch: int = 64       # corrected samples revisited from the memory per step
+    revisit_weight: float = 1.0   # weight of the capped CG loss on revisited samples
+    align_weight: float = 0.0     # weight of the alignment of adversarial predictions to corrections (0 = off)
+    align_natural_weight: float = 0.0  # weight of the alignment of natural predictions to corrections (0 = off)
+    nat_weight: float = 0.0       # extra cross-entropy on the natural mini-batch (0 = off)
+    align_eval_mode: bool = False  # score the adversarial examples of the alignment term in evaluation mode
+    accept_all: bool = False      # ablation: keep every processed correction, skipping the acceptance test
+
+    def base_eps(self) -> float:
+        return self.epsilon if self.base_epsilon is None else self.base_epsilon
 
     def step_size(self) -> float:
         return self.alpha if self.alpha is not None else (2.0 * self.epsilon / max(self.kappa, 1))
@@ -113,29 +126,80 @@ def cg_damping_weight(success_rate: float) -> float:
     return max(1.0 - success_rate, 0.0)
 
 
-def sample_level_cg_loss(probs: torch.Tensor, y: torch.Tensor, tau: float, lambda_margin: float) -> torch.Tensor:
-    """L_CG(x_hat, y; theta) per sample (Eq. 7a), not yet averaged."""
-    ce = F.nll_loss(torch.log(probs.clamp_min(1e-12)), y, reduction="none")
+def sample_level_cg_loss(probs: torch.Tensor, y: torch.Tensor, tau: float, lambda_margin: float,
+                         xi_cap: float = None) -> torch.Tensor:
+    """L_CG(x_hat, y; theta) per sample (Eq. 7a), not yet averaged.
+
+    With xi_cap, the true-class probability in the cross-entropy term is capped at
+    xi_cap (Eq. 11), so the term is constant once the confidence condition holds.
+    """
+    py = probs.gather(1, y.view(-1, 1)).squeeze(1)
+    if xi_cap is not None:
+        py = torch.clamp(py, max=xi_cap)
+    ce = -torch.log(py.clamp_min(1e-12))
     h = margin(probs, y)
     hinge = F.relu(h + tau)
     return ce + lambda_margin * hinge
 
 
-def correct_challenging_samples(model, x_s: torch.Tensor, y_s: torch.Tensor, cfg: SARAConfig):
+class CorrectionMemory:
+    """Ring buffer of accepted corrections (x*_s, y_s), kept on the device of the data.
+
+    Revisiting a stored correction under the current parameters reveals whether it has
+    left the acceptance region since it was accepted; the capped CG loss (Eq. 11) is
+    non-zero exactly for those samples.
+    """
+
+    def __init__(self, capacity: int):
+        self.capacity = capacity
+        self.x = None
+        self.y = None
+        self.size = 0
+        self.ptr = 0
+
+    def __len__(self):
+        return self.size
+
+    def push(self, x: torch.Tensor, y: torch.Tensor):
+        if x.shape[0] == 0:
+            return
+        if self.x is None:
+            self.x = x.new_zeros((self.capacity, *x.shape[1:]))
+            self.y = y.new_zeros((self.capacity,))
+        x, y = x[-self.capacity:].detach(), y[-self.capacity:].detach()
+        idx = (self.ptr + torch.arange(x.shape[0], device=x.device)) % self.capacity
+        self.x[idx] = x
+        self.y[idx] = y
+        self.ptr = (self.ptr + x.shape[0]) % self.capacity
+        self.size = min(self.size + x.shape[0], self.capacity)
+
+    def sample(self, n: int):
+        if self.size == 0 or n <= 0:
+            return None, None
+        idx = torch.randint(0, self.size, (min(n, self.size),), device=self.x.device)
+        return self.x[idx], self.y[idx]
+
+
+def correct_challenging_samples(model, x_s: torch.Tensor, y_s: torch.Tensor, cfg: SARAConfig,
+                                return_index: bool = False):
     """Batched inner correction of Algorithm 1.
 
     Returns (x_star, y_star, stats): the successfully corrected samples S*, their
     labels, and per-batch statistics (number of challenging and processed samples,
-    number of corrections, success rate, and inner iterations used).
+    number of corrections, success rate, and inner iterations used). With
+    return_index, the positions of the corrected samples within x_s are returned as
+    a fourth value.
     """
     if x_s.numel() == 0:
         empty = x_s.new_zeros((0, *x_s.shape[1:]))
-        return empty, y_s.new_zeros((0,), dtype=y_s.dtype), {"success_rate": 0.0, "iters_used": 0}
+        out = (empty, y_s.new_zeros((0,), dtype=y_s.dtype), {"success_rate": 0.0, "iters_used": 0})
+        return (*out, y_s.new_zeros((0,), dtype=torch.long)) if return_index else out
 
     # Correction budget: when more samples are challenging than the budget allows, a
     # random subset is corrected. This bounds the memory of the inner search; at a
     # fixed kappa its latency is dominated by the number of inner iterations.
     uncapped_M = x_s.shape[0]
+    idx = torch.arange(uncapped_M, device=x_s.device)
     if cfg.max_batch_correct is not None and uncapped_M > cfg.max_batch_correct:
         idx = torch.randperm(uncapped_M, device=x_s.device)[: cfg.max_batch_correct]
         x_s, y_s = x_s[idx], y_s[idx]
@@ -192,6 +256,12 @@ def correct_challenging_samples(model, x_s: torch.Tensor, y_s: torch.Tensor, cfg
     if was_training:
         model.train()
 
+    if cfg.accept_all:
+        # Ablation without the acceptance test: samples that never satisfied Eq. 7 keep their
+        # final iterate, as an inverse adversary would (Dong et al., 2023).
+        x_star[~done] = torch.clamp(x_s + delta, 0.0, 1.0)[~done].detach()
+        done = torch.ones_like(done)
+
     success_mask = done
     x_star_sel = x_star[success_mask].detach()
     y_star_sel = y_s[success_mask].detach()
@@ -202,4 +272,6 @@ def correct_challenging_samples(model, x_s: torch.Tensor, y_s: torch.Tensor, cfg
         "success_rate": float(success_mask.float().mean().item()),
         "iters_used": iters_used,
     }
+    if return_index:
+        return x_star_sel, y_star_sel, stats, idx[success_mask]
     return x_star_sel, y_star_sel, stats

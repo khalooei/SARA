@@ -1,0 +1,20 @@
+{
+  "train_time_s": 2554.672170639038,
+  "test@0.03": {
+    "n": 26032,
+    "clean_acc": 80.6661032575292,
+    "pgd_acc": 43.22372464658881,
+    "apgd_acc": 42.54763368162262
+  },
+  "val": {
+    "n": 5000,
+    "clean_acc": 79.86,
+    "pgd_acc": 45.38,
+    "apgd_acc": 44.72
+  },
+  "autoattack": {
+    "n": 1000,
+    "clean_acc": 79.1,
+    "autoattack_acc": 34.8
+  }
+}

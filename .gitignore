@@ -221,3 +221,6 @@ runs/
 .vscode/
 .idea/
 .DS_Store
+
+# Keep the released run logs
+!results/**/*.log

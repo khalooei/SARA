@@ -116,3 +116,12 @@ def test_reweighting_and_damping():
     assert w[0] > w[1] > w[2] == w[3]
     assert cg_damping_weight(0.25) == pytest.approx(0.75)
     assert cg_damping_weight(1.5) == 0.0
+
+
+def test_accept_all_keeps_every_processed_sample(tiny_model, tiny_batch):
+    x, y = tiny_batch
+    cfg = SARAConfig(epsilon=0.05, kappa=2, xi=0.99, tau=0.5, accept_all=True)
+    x_star, y_star, stats = correct_challenging_samples(tiny_model, x, y, cfg)
+    assert x_star.shape[0] == x.shape[0]
+    assert (x_star - x).abs().max() <= 0.05 + 1e-6
+    assert x_star.min() >= 0.0 and x_star.max() <= 1.0
